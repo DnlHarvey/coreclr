@@ -8,8 +8,6 @@
 // definition of the CodeGen class.
 //
 
-#ifndef LEGACY_BACKEND // Not necessary (it's this way in the #include location), but helpful to IntelliSense
-
 void genSetRegToConst(regNumber targetReg, var_types targetType, GenTree* tree);
 void genCodeForTreeNode(GenTree* treeNode);
 void genCodeForBinary(GenTree* treeNode);
@@ -67,7 +65,7 @@ enum SIMDScalarMoveType
 };
 
 #ifdef _TARGET_ARM64_
-insOpts genGetSimdInsOpt(bool is16B, var_types elementType);
+insOpts genGetSimdInsOpt(emitAttr size, var_types elementType);
 #endif
 instruction getOpForSIMDIntrinsic(SIMDIntrinsicID intrinsicId, var_types baseType, unsigned* ival = nullptr);
 void genSIMDScalarMove(
@@ -117,16 +115,17 @@ void genPutArgStkSIMD12(GenTree* treeNode);
 #ifdef FEATURE_HW_INTRINSICS
 void genHWIntrinsic(GenTreeHWIntrinsic* node);
 #if defined(_TARGET_XARCH_)
+void genHWIntrinsic_R_RM(GenTreeHWIntrinsic* node, instruction ins, emitAttr attr);
+void genHWIntrinsic_R_RM_I(GenTreeHWIntrinsic* node, instruction ins);
 void genHWIntrinsic_R_R_RM(GenTreeHWIntrinsic* node, instruction ins);
 void genHWIntrinsic_R_R_RM_I(GenTreeHWIntrinsic* node, instruction ins);
+void genHWIntrinsic_R_R_R_RM(
+    instruction ins, emitAttr attr, regNumber targetReg, regNumber op1Reg, regNumber op2Reg, GenTree* op3);
 void genSSEIntrinsic(GenTreeHWIntrinsic* node);
 void genSSE2Intrinsic(GenTreeHWIntrinsic* node);
-void genSSE3Intrinsic(GenTreeHWIntrinsic* node);
-void genSSSE3Intrinsic(GenTreeHWIntrinsic* node);
 void genSSE41Intrinsic(GenTreeHWIntrinsic* node);
 void genSSE42Intrinsic(GenTreeHWIntrinsic* node);
-void genAVXIntrinsic(GenTreeHWIntrinsic* node);
-void genAVX2Intrinsic(GenTreeHWIntrinsic* node);
+void genAvxOrAvx2Intrinsic(GenTreeHWIntrinsic* node);
 void genAESIntrinsic(GenTreeHWIntrinsic* node);
 void genBMI1Intrinsic(GenTreeHWIntrinsic* node);
 void genBMI2Intrinsic(GenTreeHWIntrinsic* node);
@@ -134,6 +133,12 @@ void genFMAIntrinsic(GenTreeHWIntrinsic* node);
 void genLZCNTIntrinsic(GenTreeHWIntrinsic* node);
 void genPCLMULQDQIntrinsic(GenTreeHWIntrinsic* node);
 void genPOPCNTIntrinsic(GenTreeHWIntrinsic* node);
+template <typename HWIntrinsicSwitchCaseBody>
+void genHWIntrinsicJumpTableFallback(NamedIntrinsic            intrinsic,
+                                     regNumber                 nonConstImmReg,
+                                     regNumber                 baseReg,
+                                     regNumber                 offsReg,
+                                     HWIntrinsicSwitchCaseBody emitSwCase);
 #endif // defined(_TARGET_XARCH_)
 #if defined(_TARGET_ARM64_)
 instruction getOpForHWIntrinsic(GenTreeHWIntrinsic* node, var_types instrType);
@@ -145,6 +150,10 @@ void genHWIntrinsicSimdInsertOp(GenTreeHWIntrinsic* node);
 void genHWIntrinsicSimdSelectOp(GenTreeHWIntrinsic* node);
 void genHWIntrinsicSimdSetAllOp(GenTreeHWIntrinsic* node);
 void genHWIntrinsicSimdUnaryOp(GenTreeHWIntrinsic* node);
+void genHWIntrinsicSimdBinaryRMWOp(GenTreeHWIntrinsic* node);
+void genHWIntrinsicSimdTernaryRMWOp(GenTreeHWIntrinsic* node);
+void genHWIntrinsicShaHashOp(GenTreeHWIntrinsic* node);
+void genHWIntrinsicShaRotateOp(GenTreeHWIntrinsic* node);
 template <typename HWIntrinsicSwitchCaseBody>
 void genHWIntrinsicSwitchTable(regNumber swReg, regNumber tmpReg, int swMax, HWIntrinsicSwitchCaseBody emitSwCase);
 #endif // defined(_TARGET_XARCH_)
@@ -319,6 +328,18 @@ void genMultiRegCallStoreToLocal(GenTree* treeNode);
 bool isStructReturn(GenTree* treeNode);
 void genStructReturn(GenTree* treeNode);
 
+#if defined(_TARGET_X86_) || defined(_TARGET_ARM_)
+void genLongReturn(GenTree* treeNode);
+#endif // _TARGET_X86_ ||  _TARGET_ARM_
+
+#if defined(_TARGET_X86_)
+void genFloatReturn(GenTree* treeNode);
+#endif // _TARGET_X86_
+
+#if defined(_TARGET_ARM64_)
+void genSimpleReturn(GenTree* treeNode);
+#endif // _TARGET_ARM64_
+
 void genReturn(GenTree* treeNode);
 
 void genLclHeap(GenTree* tree);
@@ -351,5 +372,3 @@ inline void genCheckConsumeNode(GenTree* treeNode)
 {
 }
 #endif // DEBUG
-
-#endif // !LEGACY_BACKEND

@@ -14,7 +14,6 @@
 #include "hostimpl.h"
 #include "clrnt.h"
 #include "contract.h"
-#include "tls.h"
 
 #if defined __llvm__
 #  if defined(__has_feature) && __has_feature(address_sanitizer)
@@ -201,7 +200,7 @@ ClrDebugState *CLRInitDebugState()
         pNewClrDebugState = (ClrDebugState*)::HeapAlloc(GetProcessHeap(), 0, sizeof(ClrDebugState));
         if (pNewClrDebugState != NULL)
         {
-            // Only allocate a DbgStateLockData if its owning ClrDebugState was successfully alloctaed
+            // Only allocate a DbgStateLockData if its owning ClrDebugState was successfully allocated
             pNewLockData  = (DbgStateLockData *)::HeapAlloc(GetProcessHeap(), 0, sizeof(DbgStateLockData));
         }
 #define GetProcessHeap() Dont_Use_GetProcessHeap()

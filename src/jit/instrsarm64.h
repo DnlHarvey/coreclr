@@ -708,6 +708,132 @@ INST1(sturb,   "sturb",  0,ST, IF_LS_2C,  0x38000000)
 INST1(sturh,   "sturh",  0,ST, IF_LS_2C,  0x78000000)  
                                    //  sturh   Rt,[Xn+simm9]        LS_2C  01111000000iiiii iiii00nnnnnttttt   7800 0000   [Xn imm(-256..+255)]
 
+INST1(casb,    "casb",   0, LD|ST, IF_LS_3E,  0x08A07C00)
+                                   //  casb    Wm, Wt, [Xn]         LS_3E  00001000101mmmmm 011111nnnnnttttt   08A0 7C00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(casab,   "casab",  0, LD|ST, IF_LS_3E,  0x08E07C00)
+                                   //  casab   Wm, Wt, [Xn]         LS_3E  00001000111mmmmm 011111nnnnnttttt   08E0 7C00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(casalb,  "casalb", 0, LD|ST, IF_LS_3E,  0x08E0FC00)
+                                   //  casalb  Wm, Wt, [Xn]         LS_3E  00001000111mmmmm 111111nnnnnttttt   08E0 FC00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(caslb,   "caslb",  0, LD|ST, IF_LS_3E,  0x08A0FC00)
+                                   //  caslb   Wm, Wt, [Xn]         LS_3E  00001000101mmmmm 111111nnnnnttttt   08A0 FC00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(cash,    "cash",   0, LD|ST, IF_LS_3E,  0x48A07C00)
+                                   //  cash    Wm, Wt, [Xn]         LS_3E  01001000101mmmmm 011111nnnnnttttt   48A0 7C00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(casah,   "casah",  0, LD|ST, IF_LS_3E,  0x48E07C00)
+                                   //  casah   Wm, Wt, [Xn]         LS_3E  01001000111mmmmm 011111nnnnnttttt   48E0 7C00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(casalh,  "casalh", 0, LD|ST, IF_LS_3E,  0x48E0FC00)
+                                   //  casalh  Wm, Wt, [Xn]         LS_3E  01001000111mmmmm 111111nnnnnttttt   48E0 FC00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(caslh,   "caslh",  0, LD|ST, IF_LS_3E,  0x48A0FC00)
+                                   //  caslh   Wm, Wt, [Xn]         LS_3E  01001000101mmmmm 111111nnnnnttttt   48A0 FC00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(cas,     "cas",    0, LD|ST, IF_LS_3E,  0x88A07C00)
+                                   //  cas     Rm, Rt, [Xn]         LS_3E  1X001000101mmmmm 011111nnnnnttttt   88A0 7C00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(casa,    "casa",   0, LD|ST, IF_LS_3E,  0x88E07C00)
+                                   //  casa    Rm, Rt, [Xn]         LS_3E  1X001000111mmmmm 011111nnnnnttttt   88E0 7C00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(casal,   "casal",  0, LD|ST, IF_LS_3E,  0x88E0FC00)
+                                   //  casal   Rm, Rt, [Xn]         LS_3E  1X001000111mmmmm 111111nnnnnttttt   88E0 FC00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(casl,    "casl",   0, LD|ST, IF_LS_3E,  0x88A0FC00)
+                                   //  casl    Rm, Rt, [Xn]         LS_3E  1X001000101mmmmm 111111nnnnnttttt   88A0 FC00   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddb,  "ldaddb",  0, LD|ST, IF_LS_3E,  0x38200000)
+                                   //  ldaddb   Wm, Wt, [Xn]        LS_3E  00111000001mmmmm 000000nnnnnttttt   3820 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddab, "ldaddab", 0, LD|ST, IF_LS_3E,  0x38A00000)
+                                   //  ldaddab  Wm, Wt, [Xn]        LS_3E  00111000101mmmmm 000000nnnnnttttt   38A0 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddalb,"ldaddalb",0, LD|ST, IF_LS_3E,  0x38E00000)
+                                   //  ldaddalb Wm, Wt, [Xn]        LS_3E  00111000111mmmmm 000000nnnnnttttt   38E0 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddlb, "ldaddlb", 0, LD|ST, IF_LS_3E,  0x38600000)
+                                   //  ldaddlb  Wm, Wt, [Xn]        LS_3E  00111000011mmmmm 000000nnnnnttttt   3860 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddh,  "ldaddh",  0, LD|ST, IF_LS_3E,  0x78200000)
+                                   //  ldaddh   Wm, Wt, [Xn]        LS_3E  01111000001mmmmm 000000nnnnnttttt   7820 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddah, "ldaddah", 0, LD|ST, IF_LS_3E,  0x78A00000)
+                                   //  ldaddah  Wm, Wt, [Xn]        LS_3E  01111000101mmmmm 000000nnnnnttttt   78A0 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddalh,"ldaddalh",0, LD|ST, IF_LS_3E,  0x78E00000)
+                                   //  ldaddalh Wm, Wt, [Xn]        LS_3E  01111000111mmmmm 000000nnnnnttttt   78E0 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddlh, "ldaddlh", 0, LD|ST, IF_LS_3E,  0x78600000)
+                                   //  ldaddlh  Wm, Wt, [Xn]        LS_3E  01111000011mmmmm 000000nnnnnttttt   7860 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldadd,   "ldadd",   0, LD|ST, IF_LS_3E,  0xB8200000)
+                                   //  ldadd    Rm, Rt, [Xn]        LS_3E  1X111000001mmmmm 000000nnnnnttttt   B820 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldadda,  "ldadda",  0, LD|ST, IF_LS_3E,  0xB8A00000)
+                                   //  ldadda   Rm, Rt, [Xn]        LS_3E  1X111000101mmmmm 000000nnnnnttttt   B8A0 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddal, "ldaddal", 0, LD|ST, IF_LS_3E,  0xB8E00000)
+                                   //  ldaddal  Rm, Rt, [Xn]        LS_3E  1X111000111mmmmm 000000nnnnnttttt   B8E0 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(ldaddl,  "ldaddl",  0, LD|ST, IF_LS_3E,  0xB8600000)
+                                   //  ldaddl   Rm, Rt, [Xn]        LS_3E  1X111000011mmmmm 000000nnnnnttttt   B860 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(staddb,  "staddb",  0, ST, IF_LS_3E,  0x38200000)
+                                   //  staddb   Wm, [Xn]            LS_3E  00111000001mmmmm 000000nnnnnttttt   3820 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(staddlb, "staddlb", 0, ST, IF_LS_3E,  0x38600000)
+                                   //  staddlb  Wm, [Xn]            LS_3E  00111000011mmmmm 000000nnnnnttttt   3860 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(staddh,  "staddh",  0, ST, IF_LS_3E,  0x78200000)
+                                   //  staddh   Wm, [Xn]            LS_3E  01111000001mmmmm 000000nnnnnttttt   7820 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(staddlh, "staddlh", 0, ST, IF_LS_3E,  0x78600000)
+                                   //  staddlh  Wm, [Xn]            LS_3E  01111000011mmmmm 000000nnnnnttttt   7860 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(stadd,   "stadd",   0, ST, IF_LS_3E,  0xB8200000)
+                                   //  stadd    Rm, [Xn]            LS_3E  1X111000001mmmmm 000000nnnnnttttt   B820 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(staddl,  "staddl",  0, ST, IF_LS_3E,  0xB8600000)
+                                   //  staddl   Rm, [Xn]            LS_3E  1X111000011mmmmm 000000nnnnnttttt   B860 0000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swpb,    "swpb",   0, LD|ST, IF_LS_3E,  0x38208000)
+                                   //  swpb    Wm, Wt, [Xn]         LS_3E  00111000001mmmmm 100000nnnnnttttt   3820 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swpab,   "swpab",  0, LD|ST, IF_LS_3E,  0x38A08000)
+                                   //  swpab   Wm, Wt, [Xn]         LS_3E  00111000101mmmmm 100000nnnnnttttt   38A0 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swpalb,  "swpalb", 0, LD|ST, IF_LS_3E,  0x38E08000)
+                                   //  swpalb  Wm, Wt, [Xn]         LS_3E  00111000111mmmmm 100000nnnnnttttt   38E0 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swplb,   "swplb",  0, LD|ST, IF_LS_3E,  0x38608000)
+                                   //  swplb   Wm, Wt, [Xn]         LS_3E  00111000011mmmmm 100000nnnnnttttt   3860 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swph,    "swph",   0, LD|ST, IF_LS_3E,  0x78208000)
+                                   //  swph    Wm, Wt, [Xn]         LS_3E  01111000001mmmmm 100000nnnnnttttt   7820 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swpah,   "swpah",  0, LD|ST, IF_LS_3E,  0x78A08000)
+                                   //  swpah   Wm, Wt, [Xn]         LS_3E  01111000101mmmmm 100000nnnnnttttt   78A0 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swpalh,  "swpalh", 0, LD|ST, IF_LS_3E,  0x78E08000)
+                                   //  swpalh  Wm, Wt, [Xn]         LS_3E  01111000111mmmmm 100000nnnnnttttt   78E0 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swplh,   "swplh",  0, LD|ST, IF_LS_3E,  0x78608000)
+                                   //  swplh   Wm, Wt, [Xn]         LS_3E  01111000011mmmmm 100000nnnnnttttt   7860 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swp,     "swp",    0, LD|ST, IF_LS_3E,  0xB8208000)
+                                   //  swp     Rm, Rt, [Xn]         LS_3E  1X111000001mmmmm 100000nnnnnttttt   B820 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swpa,    "swpa",   0, LD|ST, IF_LS_3E,  0xB8A08000)
+                                   //  swpa    Rm, Rt, [Xn]         LS_3E  1X111000101mmmmm 100000nnnnnttttt   B8A0 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swpal,   "swpal",  0, LD|ST, IF_LS_3E,  0xB8E08000)
+                                   //  swpal   Rm, Rt, [Xn]         LS_3E  1X111000111mmmmm 100000nnnnnttttt   B8E0 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
+INST1(swpl,    "swpl",   0, LD|ST, IF_LS_3E,  0xB8608000)
+                                   //  swpl    Rm, Rt, [Xn]         LS_3E  1X111000011mmmmm 100000nnnnnttttt   B860 8000   Rm Rt Rn ARMv8.1 LSE Atomics
+
 INST1(adr,     "adr",    0, 0, IF_DI_1E,  0x10000000)  
                                    //  adr     Rd, simm21           DI_1E  0ii10000iiiiiiii iiiiiiiiiiiddddd   1000 0000   Rd simm21
 
@@ -828,6 +954,18 @@ INST1(cset,    "cset",   0, 0, IF_DR_1D,  0x1A9F07E0)
 INST1(csetm,   "csetm",  0, 0, IF_DR_1D,  0x5A9F03E0)
                                    //  csetm   Rd,cond              DR_1D  X101101010011111 cccc0011111ddddd   5A9F 03E0   Rd cond
 
+INST1(aese,    "aese",   0, 0, IF_DV_2P,  0x4E284800)
+                                   //  aese   Vd.16B,Vn.16B         DV_2P  0100111000101000 010010nnnnnddddd   4E28 4800   Vd.16B Vn.16B  (vector)
+
+INST1(aesd,    "aesd",   0, 0, IF_DV_2P,  0x4E285800)
+                                   //  aesd   Vd.16B,Vn.16B         DV_2P  0100111000101000 010110nnnnnddddd   4E28 5800   Vd.16B Vn.16B  (vector)
+
+INST1(aesmc,   "aesmc",  0, 0, IF_DV_2P,  0x4E286800)
+                                   //  aesmc  Vd.16B,Vn.16B         DV_2P  0100111000101000 011010nnnnnddddd   4E28 6800   Vd.16B Vn.16B  (vector)
+
+INST1(aesimc,  "aesimc", 0, 0, IF_DV_2P,  0x4E287800)
+                                   //  aesimc Vd.16B,Vn.16B         DV_2P  0100111000101000 011110nnnnnddddd   4E28 7800   Vd.16B Vn.16B  (vector)
+
 INST1(rev,     "rev",    0, 0, IF_DR_2G,  0x5AC00800)
                                    //  rev     Rd,Rm                DR_2G  X101101011000000 00001Xnnnnnddddd   5AC0 0800   Rd Rn
 
@@ -905,6 +1043,36 @@ INST1(asrv,    "asrv",   0, 0, IF_DR_3A,  0x1AC02800)
 
 INST1(rorv,    "rorv",   0, 0, IF_DR_3A,  0x1AC02C00)
                                    //  rorv    Rd,Rn,Rm             DR_3A  X0011010110mmmmm 001011nnnnnddddd   1AC0 2C00
+
+INST1(sha1c,   "sha1c",  0, 0, IF_DV_3F,   0x5E000000)
+                                   //  sha1c   Qd, Sn Vm.4S         DV_3F  01011110000mmmmm 000000nnnnnddddd   5E00 0000   Qd Sn Vm.4S   (vector)
+
+INST1(sha1m,   "sha1m",  0, 0, IF_DV_3F,   0x5E002000)
+                                   //  sha1m   Qd, Sn Vm.4S         DV_3F  01011110000mmmmm 001000nnnnnddddd   5E00 0000   Qd Sn Vm.4S   (vector)
+
+INST1(sha1p,   "sha1p",  0, 0, IF_DV_3F,   0x5E001000)
+                                   //  sha1m   Qd, Sn Vm.4S         DV_3F  01011110000mmmmm 000100nnnnnddddd   5E00 0000   Qd Sn Vm.4S   (vector)
+
+INST1(sha1h,   "sha1h",  0, 0, IF_DR_2J,   0x5E280800)
+                                   //  sha1h   Sd, Sn               DR_2H  0101111000101000 000010nnnnnddddd   5E28 0800   Sn Sn
+
+INST1(sha1su0, "sha1su0",  0, 0, IF_DV_3F,  0x5E003000)
+                                   //  sha1su0 Vd.4S,Vn.4S,Vm.4S    DV_3F  01011110000mmmmm 001100nnnnnddddd   5E00 3000   Vd.4S Vn.4S Vm.4S   (vector)
+
+INST1(sha1su1, "sha1su1",  0, 0, IF_DV_2P,  0x5E281800)
+                                   //  sha1su1 Vd.4S, Vn.4S         DV_2P  0101111000101000 000110nnnnnddddd   5E28 1800   Vd.4S Vn.4S   (vector)
+
+INST1(sha256h, "sha256h",  0, 0, IF_DV_3F,  0x5E004000)
+                                   //  sha256h  Qd,Qn,Vm.4S         DV_3F  01011110000mmmmm 010000nnnnnddddd   5E00 4000  Qd Qn Vm.4S   (vector)
+
+INST1(sha256h2, "sha256h2",  0, 0, IF_DV_3F,  0x5E005000)
+                                   //  sha256h  Qd,Qn,Vm.4S         DV_3F  01011110000mmmmm 010100nnnnnddddd   5E00 5000  Qd Qn Vm.4S   (vector)
+
+INST1(sha256su0, "sha256su0",  0, 0, IF_DV_2P,  0x5E282800)
+                                   // sha256su0  Vd.4S,Vn.4S        DV_2P  0101111000101000 001010nnnnnddddd   5E28 2800  Vd.4S Vn.4S   (vector)
+
+INST1(sha256su1, "sha256su1",  0, 0, IF_DV_3F,  0x5E006000)
+                                   // sha256su1  Vd.4S,Vn.4S,Vm.4S  DV_3F  01011110000mmmmm 011000nnnnnddddd   5E00 6000  Vd.4S Vn.4S Vm.4S   (vector)
    
 INST1(sbfm,    "sbfm",   0, 0, IF_DI_2D,  0x13000000)
                                    //  sbfm    Rd,Rn,imr,ims        DI_2D  X00100110Nrrrrrr ssssssnnnnnddddd   1300 0000   imr, ims

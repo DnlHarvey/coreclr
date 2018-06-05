@@ -15,7 +15,6 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 #pragma hdrstop
 #endif
 
-#ifndef LEGACY_BACKEND // This file is ONLY used for the RyuJIT backend that uses the linear scan register allocator.
 #include "emit.h"
 #include "codegen.h"
 
@@ -117,7 +116,11 @@ void CodeGen::genCodeForBBlist()
 
         /* Mark the register as holding the variable */
 
-        regTracker.rsTrackRegLclVar(varDsc->lvRegNum, varNum);
+        assert(varDsc->lvRegNum != REG_STK);
+        if (!varDsc->lvAddrExposed)
+        {
+            regSet.verifyRegUsed(varDsc->lvRegNum);
+        }
     }
 
     unsigned finallyNesting = 0;
@@ -602,6 +605,22 @@ void CodeGen::genCodeForBBlist()
                 {
                     instGen(INS_BREAKPOINT); // This should never get executed
                 }
+                // Do likewise for blocks that end in DOES_NOT_RETURN calls
+                // that were not caught by the above rules. This ensures that
+                // gc register liveness doesn't change across call instructions
+                // in fully-interruptible mode.
+                else
+                {
+                    GenTree* call = block->lastNode();
+
+                    if ((call != nullptr) && (call->gtOper == GT_CALL))
+                    {
+                        if ((call->gtCall.gtCallMoreFlags & GTF_CALL_M_DOES_NOT_RETURN) != 0)
+                        {
+                            instGen(INS_BREAKPOINT); // This should never get executed
+                        }
+                    }
+                }
 
                 break;
 
@@ -679,21 +698,6 @@ XX                                                                           XX
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 */
-//
-
-//------------------------------------------------------------------------
-// genGetAssignedReg: Get the register assigned to the given node
-//
-// Arguments:
-//    tree      - the lclVar node whose assigned register we want
-//
-// Return Value:
-//    The assigned regNumber
-//
-regNumber CodeGenInterface::genGetAssignedReg(GenTree* tree)
-{
-    return tree->gtRegNum;
-}
 
 //------------------------------------------------------------------------
 // genSpillVar: Spill a local variable
@@ -733,22 +737,8 @@ void CodeGen::genSpillVar(GenTree* tree)
         }
 
         instruction storeIns = ins_Store(lclTyp, compiler->isSIMDTypeLocalAligned(varNum));
-#if CPU_LONG_USES_REGPAIR
-        if (varTypeIsMultiReg(tree))
-        {
-            assert(varDsc->lvRegNum == genRegPairLo(tree->gtRegPair));
-            assert(varDsc->lvOtherReg == genRegPairHi(tree->gtRegPair));
-            regNumber regLo = genRegPairLo(tree->gtRegPair);
-            regNumber regHi = genRegPairHi(tree->gtRegPair);
-            inst_TT_RV(storeIns, tree, regLo);
-            inst_TT_RV(storeIns, tree, regHi, 4);
-        }
-        else
-#endif
-        {
-            assert(varDsc->lvRegNum == tree->gtRegNum);
-            inst_TT_RV(storeIns, tree, tree->gtRegNum, 0, size);
-        }
+        assert(varDsc->lvRegNum == tree->gtRegNum);
+        inst_TT_RV(storeIns, tree, tree->gtRegNum, 0, size);
 
         if (restoreRegVar)
         {
@@ -896,10 +886,15 @@ void CodeGen::genUnspillRegIfNeeded(GenTree* tree)
                 inst_RV_TT(ins_Load(treeType, compiler->isSIMDTypeLocalAligned(lcl->gtLclNum)), dstReg, unspillTree);
             }
 #elif defined(_TARGET_ARM64_)
-            var_types   targetType = unspillTree->gtType;
-            instruction ins        = ins_Load(targetType, compiler->isSIMDTypeLocalAligned(lcl->gtLclNum));
-            emitAttr    attr       = emitTypeSize(targetType);
-            emitter*    emit       = getEmitter();
+            var_types targetType = unspillTree->gtType;
+            if (targetType != genActualType(varDsc->lvType) && !varTypeIsGC(targetType) && !varDsc->lvNormalizeOnLoad())
+            {
+                assert(!varTypeIsGC(varDsc));
+                targetType = genActualType(varDsc->lvType);
+            }
+            instruction ins  = ins_Load(targetType, compiler->isSIMDTypeLocalAligned(lcl->gtLclNum));
+            emitAttr    attr = emitTypeSize(targetType);
+            emitter*    emit = getEmitter();
 
             // Fixes Issue #3326
             attr = varTypeIsFloating(targetType) ? attr : emit->emitInsAdjustLoadStoreAttr(ins, attr);
@@ -1908,5 +1903,3 @@ void CodeGen::genCodeForCast(GenTreeOp* tree)
     }
     // The per-case functions call genProduceReg()
 }
-
-#endif // !LEGACY_BACKEND

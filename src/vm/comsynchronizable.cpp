@@ -32,8 +32,6 @@
 #include "utilcode.h"
 #endif
 
-#include "newapis.h"
-
 // To include definition of CAPTURE_BUCKETS_AT_TRANSITION
 #include "exstate.h"
 
@@ -399,20 +397,20 @@ ULONG WINAPI ThreadNative::KickOffThread(void* pass)
 }
 
 
-FCIMPL2(void, ThreadNative::Start, ThreadBaseObject* pThisUNSAFE, StackCrawlMark* pStackMark)
+FCIMPL1(void, ThreadNative::Start, ThreadBaseObject* pThisUNSAFE)
 {
     FCALL_CONTRACT;
 
     HELPER_METHOD_FRAME_BEGIN_NOPOLL();
 
-    StartInner(pThisUNSAFE, pStackMark);
+    StartInner(pThisUNSAFE);
 
     HELPER_METHOD_FRAME_END_POLL();
 }
 FCIMPLEND
 
 // Start up a thread, which by now should be in the ThreadStore's Unstarted list.
-void ThreadNative::StartInner(ThreadBaseObject* pThisUNSAFE, StackCrawlMark* pStackMark)
+void ThreadNative::StartInner(ThreadBaseObject* pThisUNSAFE)
 {
     CONTRACTL
     {
@@ -469,13 +467,23 @@ void ThreadNative::StartInner(ThreadBaseObject* pThisUNSAFE, StackCrawlMark* pSt
         if (ETW_EVENT_ENABLED(MICROSOFT_WINDOWS_DOTNETRUNTIME_PROVIDER_Context, ThreadCreating))
             FireEtwThreadCreating(pNewThread, GetClrInstanceId());
 
+        // copy out the managed name into a buffer that will not move if a GC happens
+        const WCHAR* nativeThreadName = NULL;
+        InlineSString<64> threadNameBuffer;
+        STRINGREF managedThreadName = gc.pThis->GetName();
+        if (managedThreadName != NULL)
+        {
+            managedThreadName->GetSString(threadNameBuffer);
+            nativeThreadName = threadNameBuffer.GetUnicode();
+        }
+
         // As soon as we create the new thread, it is eligible for suspension, etc.
         // So it gets transitioned to cooperative mode before this call returns to
         // us.  It is our duty to start it running immediately, so that GC isn't blocked.
 
         BOOL success = pNewThread->CreateNewThread(
                                         pNewThread->RequestedThreadStackSize() /* 0 stackSize override*/,
-                                        KickOffThread, share);
+                                        KickOffThread, share, nativeThreadName);
 
         if (!success)
         {
@@ -1497,7 +1505,6 @@ LPVOID F_CALL_CONV ThreadNative::FastGetDomain()
     }
     CONTRACTL_END;
 
-    Thread *pThread;
     AppDomain *pDomain;
     OBJECTHANDLE ExposedObject;
 
@@ -1549,7 +1556,7 @@ void QCALLTYPE ThreadNative::InformThreadNameChange(QCall::ThreadHandle thread, 
 #ifndef FEATURE_PAL
     // Set on Windows 10 Creators Update and later machines the unmanaged thread name as well. That will show up in ETW traces and debuggers which is very helpful
     // if more and more threads get a meaningful name
-    if (len > 0 && name != NULL)
+    if (len > 0 && name != NULL && pThread->GetThreadHandle() != INVALID_HANDLE_VALUE)
     {
         SetThreadName(pThread->GetThreadHandle(), name);
     }
@@ -1768,3 +1775,10 @@ FCIMPL1(void, ThreadNative::ClearAbortReason, ThreadBaseObject* pThisUNSAFE)
 FCIMPLEND
 
 
+FCIMPL0(INT32, ThreadNative::GetCurrentProcessorNumber)
+{
+    FCALL_CONTRACT;
+
+    return ::GetCurrentProcessorNumber();
+}
+FCIMPLEND;

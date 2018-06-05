@@ -499,14 +499,14 @@ MethodTable* Module::CreateArrayMethodTable(TypeHandle elemTypeHnd, CorElementTy
     _ASSERTE(pMT->IsClassPreInited());
 
     // Set BaseSize to be size of non-data portion of the array
-    DWORD baseSize = ObjSizeOf(ArrayBase);
+    DWORD baseSize = ARRAYBASE_BASESIZE;
     if (arrayKind == ELEMENT_TYPE_ARRAY)
         baseSize += Rank*sizeof(DWORD)*2;
 
-#if !defined(_WIN64) && (DATA_ALIGNMENT > 4) 
+#if !defined(_TARGET_64BIT_) && (DATA_ALIGNMENT > 4)
     if (dwComponentSize >= DATA_ALIGNMENT)
         baseSize = (DWORD)ALIGN_UP(baseSize, DATA_ALIGNMENT);
-#endif // !defined(_WIN64) && (DATA_ALIGNMENT > 4)
+#endif // !defined(_TARGET_64BIT_) && (DATA_ALIGNMENT > 4)
     pMT->SetBaseSize(baseSize);
     // Because of array method table persisting, we need to copy the map
     for (unsigned index = 0; index < pParentClass->GetNumInterfaces(); ++index)
@@ -682,7 +682,7 @@ MethodTable* Module::CreateArrayMethodTable(TypeHandle elemTypeHnd, CorElementTy
             // This equals the offset of the first pointer if this were an array of entirely pointers, plus the offset of the
             // first pointer in the value class
             pSeries->SetSeriesOffset(ArrayBase::GetDataPtrOffset(pMT)
-                + (sortedSeries[0]->GetSeriesOffset()) - sizeof (Object) );
+                + (sortedSeries[0]->GetSeriesOffset()) - OBJECT_SIZE);
             for (index = 0; index < nSeries; index ++)
             {
                 size_t numPtrsInBytes = sortedSeries[index]->GetSeriesSize()
@@ -701,12 +701,12 @@ MethodTable* Module::CreateArrayMethodTable(TypeHandle elemTypeHnd, CorElementTy
                 else
                 {
                     skip = sortedSeries[0]->GetSeriesOffset() + pElemMT->GetBaseSize()
-                         - ObjSizeOf(Object) - currentOffset;
+                         - OBJECT_BASESIZE - currentOffset;
                 }
 
-                _ASSERTE(!"Module::CreateArrayMethodTable() - unaligned GC info" || IS_ALIGNED(skip, sizeof(size_t)));
+                _ASSERTE(!"Module::CreateArrayMethodTable() - unaligned GC info" || IS_ALIGNED(skip, TARGET_POINTER_SIZE));
 
-                unsigned short NumPtrs = (unsigned short) (numPtrsInBytes / sizeof(void*));
+                unsigned short NumPtrs = (unsigned short) (numPtrsInBytes / TARGET_POINTER_SIZE);
                 if(skip > MAX_SIZE_FOR_VALUECLASS_IN_ARRAY || numPtrsInBytes > MAX_PTRS_FOR_VALUECLASSS_IN_ARRAY) {
                     StackSString ssElemName;
                     elemTypeHnd.GetName(ssElemName);

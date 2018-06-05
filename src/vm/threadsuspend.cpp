@@ -1537,7 +1537,7 @@ Thread::UserAbort(ThreadAbortRequester requester,
 
     Thread *pCurThread = GetThread();
 
-    // If aboring self
+    // If aborting self
     if (this == pCurThread)
     {
         SetAbortInitiated();
@@ -3572,6 +3572,7 @@ void ThreadStore::TrapReturningThreads(BOOL yes)
         FastInterlockIncrement(&g_trtChgStamp);
 #endif
 
+        GCHeapUtilities::GetGCHeap()->SetSuspensionPending(true);
         FastInterlockIncrement (&g_TrapReturningThreads);
 #ifdef ENABLE_FAST_GCPOLL_HELPER
         EnableJitGCPoll();
@@ -3585,10 +3586,15 @@ void ThreadStore::TrapReturningThreads(BOOL yes)
     else
     {
         FastInterlockDecrement (&g_TrapReturningThreads);
+        GCHeapUtilities::GetGCHeap()->SetSuspensionPending(false);
+
 #ifdef ENABLE_FAST_GCPOLL_HELPER
         if (0 == g_TrapReturningThreads)
+        {
             DisableJitGCPoll();
+        }
 #endif
+
         _ASSERTE(g_TrapReturningThreads >= 0);
     }
 #ifdef ENABLE_FAST_GCPOLL_HELPER
@@ -6419,7 +6425,7 @@ ReturnKind GetReturnKindFromMethodTable(Thread *pThread, EECodeInfo *codeInfo)
         return RT_ByRef;
     }
 
-#ifdef FEATURE_UNIX_AMD64_STRUCT_PASSING
+#ifdef UNIX_AMD64_ABI
     // The Multi-reg return case using the classhandle is only implemented for AMD64 SystemV ABI.
     // On other platforms, multi-reg return is not supported with GcInfo v1.
     // So, the relevant information must be obtained from the GcInfo tables (which requires version2).
@@ -6446,7 +6452,7 @@ ReturnKind GetReturnKindFromMethodTable(Thread *pThread, EECodeInfo *codeInfo)
         ReturnKind structReturnKind = GetStructReturnKind(regKinds[0], regKinds[1]);
         return structReturnKind;
     }
-#endif // FEATURE_UNIX_AMD64_STRUCT_PASSING
+#endif // UNIX_AMD64_ABI
 
     return RT_Scalar;
 }
@@ -6462,10 +6468,10 @@ ReturnKind GetReturnKind(Thread *pThread, EECodeInfo *codeInfo)
     }
     else
     {
-#if !defined(FEATURE_MULTIREG_RETURN) || defined(FEATURE_UNIX_AMD64_STRUCT_PASSING)
+#if !defined(FEATURE_MULTIREG_RETURN) || defined(UNIX_AMD64_ABI)
          // For ARM64 struct-return, GetReturnKindFromMethodTable() is not supported
         _ASSERTE(returnKind == GetReturnKindFromMethodTable(pThread, codeInfo));
-#endif // !FEATURE_MULTIREG_RETURN || FEATURE_UNIX_AMD64_STRUCT_PASSING
+#endif // !FEATURE_MULTIREG_RETURN || UNIX_AMD64_ABI
     }
 
     _ASSERTE(IsValidReturnKind(returnKind));
@@ -6618,7 +6624,7 @@ StackWalkAction SWCB_GetExecutionStateForSwitchIn(CrawlFrame *pCF, VOID *pData)
 // call to GetThreadContext. This feature exists on all Win64 platforms, so this change is only for 32-bit
 // platforms. We've asked for this fix to be applied to future 32-bit OS's, so we can remove this on those
 // platforms when that happens. Furthermore, once we stop supporting the older 32-bit OS versions that don't have
-// the new feature, we can remove these alltogether.
+// the new feature, we can remove these altogether.
 //
 // WARNING: Interrupts (int 3) immediately increment the IP whereas traps (AVs) do not.
 // So this heuristic only works for trap, but not for interrupts. As a result, the race

@@ -224,7 +224,11 @@ void RangeCheck::OptimizeRangeCheck(BasicBlock* block, GenTree* stmt, GenTree* t
     }
     else
 #ifdef FEATURE_SIMD
-        if (tree->gtOper != GT_SIMD_CHK)
+        if (tree->gtOper != GT_SIMD_CHK
+#ifdef FEATURE_HW_INTRINSICS
+            && tree->gtOper != GT_HW_INTRINSIC_CHK
+#endif // FEATURE_HW_INTRINSICS
+            )
 #endif // FEATURE_SIMD
     {
         arrSize = GetArrLength(arrLenVn);
@@ -308,7 +312,7 @@ void RangeCheck::Widen(BasicBlock* block, GenTree* tree, Range* pRange)
     if (range.LowerLimit().IsDependent() || range.LowerLimit().IsUnknown())
     {
         // To determine the lower bound, ask if the loop increases monotonically.
-        bool increasing = IsMonotonicallyIncreasing(tree);
+        bool increasing = IsMonotonicallyIncreasing(tree, false);
         JITDUMP("IsMonotonicallyIncreasing %d", increasing);
         if (increasing)
         {
@@ -320,11 +324,7 @@ void RangeCheck::Widen(BasicBlock* block, GenTree* tree, Range* pRange)
 
 bool RangeCheck::IsBinOpMonotonicallyIncreasing(GenTreeOp* binop)
 {
-#ifdef LEGACY_BACKEND
-    assert(binop->OperIs(GT_ADD, GT_ASG_ADD));
-#else
     assert(binop->OperIs(GT_ADD));
-#endif
 
     GenTree* op1 = binop->gtGetOp1();
     GenTree* op2 = binop->gtGetOp2();
@@ -344,10 +344,11 @@ bool RangeCheck::IsBinOpMonotonicallyIncreasing(GenTreeOp* binop)
     switch (op2->OperGet())
     {
         case GT_LCL_VAR:
-            return IsMonotonicallyIncreasing(op1) && IsMonotonicallyIncreasing(op2);
+            // When adding two local variables, we also must ensure that any constant is non-negative.
+            return IsMonotonicallyIncreasing(op1, true) && IsMonotonicallyIncreasing(op2, true);
 
         case GT_CNS_INT:
-            return (op2->AsIntConCommon()->IconValue() >= 0) && IsMonotonicallyIncreasing(op1);
+            return (op2->AsIntConCommon()->IconValue() >= 0) && IsMonotonicallyIncreasing(op1, false);
 
         default:
             JITDUMP("Not monotonic because expression is not recognized.\n");
@@ -355,7 +356,8 @@ bool RangeCheck::IsBinOpMonotonicallyIncreasing(GenTreeOp* binop)
     }
 }
 
-bool RangeCheck::IsMonotonicallyIncreasing(GenTree* expr)
+// The parameter rejectNegativeConst is true when we are adding two local vars (see above)
+bool RangeCheck::IsMonotonicallyIncreasing(GenTree* expr, bool rejectNegativeConst)
 {
     JITDUMP("[RangeCheck::IsMonotonicallyIncreasing] [%06d]\n", Compiler::dspTreeID(expr));
 
@@ -374,11 +376,21 @@ bool RangeCheck::IsMonotonicallyIncreasing(GenTree* expr)
     {
         return false;
     }
+
     // If expr is constant, then it is not part of the dependency
     // loop which has to increase monotonically.
-    else if (m_pCompiler->vnStore->IsVNConstant(expr->gtVNPair.GetConservative()))
+    ValueNum vn = expr->gtVNPair.GetConservative();
+    if (m_pCompiler->vnStore->IsVNInt32Constant(vn))
     {
-        return true;
+        if (rejectNegativeConst)
+        {
+            int cons = m_pCompiler->vnStore->ConstantValue<int>(vn);
+            return (cons >= 0);
+        }
+        else
+        {
+            return true;
+        }
     }
     // If the rhs expr is local, then try to find the def of the local.
     else if (expr->IsLocal())
@@ -393,17 +405,10 @@ bool RangeCheck::IsMonotonicallyIncreasing(GenTree* expr)
         switch (asg->OperGet())
         {
             case GT_ASG:
-                return IsMonotonicallyIncreasing(asg->gtGetOp2());
-
-#ifdef LEGACY_BACKEND
-            case GT_ASG_ADD:
-                return IsBinOpMonotonicallyIncreasing(asg);
-#endif
+                return IsMonotonicallyIncreasing(asg->gtGetOp2(), rejectNegativeConst);
 
             default:
-#ifndef LEGACY_BACKEND
                 noway_assert(false);
-#endif
                 // All other 'asg->OperGet()' kinds, return false
                 break;
         }
@@ -423,7 +428,7 @@ bool RangeCheck::IsMonotonicallyIncreasing(GenTree* expr)
             {
                 continue;
             }
-            if (!IsMonotonicallyIncreasing(args->Current()))
+            if (!IsMonotonicallyIncreasing(args->Current(), rejectNegativeConst))
             {
                 JITDUMP("Phi argument not monotonic\n");
                 return false;
@@ -796,11 +801,7 @@ void RangeCheck::MergeAssertion(BasicBlock* block, GenTree* op, Range* pRange DE
 // Compute the range for a binary operation.
 Range RangeCheck::ComputeRangeForBinOp(BasicBlock* block, GenTreeOp* binop, bool monotonic DEBUGARG(int indent))
 {
-#ifdef LEGACY_BACKEND
-    assert(binop->OperIs(GT_ADD, GT_ASG_ADD));
-#else
     assert(binop->OperIs(GT_ADD));
-#endif
 
     GenTree* op1 = binop->gtGetOp1();
     GenTree* op2 = binop->gtGetOp2();
@@ -891,18 +892,8 @@ Range RangeCheck::ComputeRangeForLocalDef(BasicBlock*          block,
             return range;
         }
 
-#ifdef LEGACY_BACKEND
-        case GT_ASG_ADD:
-            // If the operator of the definition is +=, then compute the range of the operands of +.
-            // Note that gtGetOp1 will return op1 to be the lhs; in the formulation of ssa, we have
-            // a side table for defs and the lhs of a += is considered to be a use for SSA numbering.
-            return ComputeRangeForBinOp(asgBlock, asg, monotonic DEBUGARG(indent));
-#endif
-
         default:
-#ifndef LEGACY_BACKEND
             noway_assert(false);
-#endif
             // All other 'asg->OperGet()' kinds, return Limit::keUnknown
             break;
     }
@@ -1030,16 +1021,8 @@ bool RangeCheck::DoesVarDefOverflow(GenTreeLclVarCommon* lcl)
         case GT_ASG:
             return DoesOverflow(asgBlock, asg->gtGetOp2());
 
-#ifdef LEGACY_BACKEND
-        case GT_ASG_ADD:
-            // For GT_ASG_ADD, op2 is use, op1 is also use since we side table for defs in useasg case.
-            return DoesBinOpOverflow(asgBlock, asg);
-#endif
-
         default:
-#ifndef LEGACY_BACKEND
             noway_assert(false);
-#endif
             // All other 'asg->OperGet()' kinds, conservatively return true
             break;
     }

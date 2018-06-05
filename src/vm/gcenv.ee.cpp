@@ -15,8 +15,8 @@ void GCToEEInterface::SuspendEE(SUSPEND_REASON reason)
 {
     WRAPPER_NO_CONTRACT;
 
-    static_assert_no_msg(SUSPEND_FOR_GC == ThreadSuspend::SUSPEND_FOR_GC);
-    static_assert_no_msg(SUSPEND_FOR_GC_PREP == ThreadSuspend::SUSPEND_FOR_GC_PREP);
+    static_assert_no_msg(SUSPEND_FOR_GC == (int)ThreadSuspend::SUSPEND_FOR_GC);
+    static_assert_no_msg(SUSPEND_FOR_GC_PREP == (int)ThreadSuspend::SUSPEND_FOR_GC_PREP);
 
     _ASSERTE(reason == SUSPEND_FOR_GC || reason == SUSPEND_FOR_GC_PREP);
 
@@ -169,7 +169,7 @@ void GCToEEInterface::GcScanRoots(promote_func* fn, int condemned, int max_gen, 
         STRESS_LOG2(LF_GC | LF_GCROOTS, LL_INFO100, "{ Starting scan of Thread %p ID = %x\n", pThread, pThread->GetThreadId());
 
         if (GCHeapUtilities::GetGCHeap()->IsThreadUsingAllocationContextHeap(
-            GCToEEInterface::GetAllocContext(pThread), sc->thread_number))
+            pThread->GetAllocContext(), sc->thread_number))
         {
             sc->thread_under_crawl = pThread;
 #ifdef FEATURE_EVENT_TRACE
@@ -315,16 +315,13 @@ uint32_t GCToEEInterface::GetActiveSyncBlockCount()
     return SyncBlockCache::GetSyncBlockCache()->GetActiveCount();   
 }
 
-gc_alloc_context * GCToEEInterface::GetAllocContext(Thread * pThread)
+gc_alloc_context * GCToEEInterface::GetAllocContext()
 {
     WRAPPER_NO_CONTRACT;
+    
+    Thread* pThread = ::GetThread();
+    assert(pThread != nullptr);
     return pThread->GetAllocContext();
-}
-
-bool GCToEEInterface::CatchAtSafePoint(Thread * pThread)
-{
-    WRAPPER_NO_CONTRACT;
-    return !!pThread->CatchAtSafePoint();
 }
 
 void GCToEEInterface::GcEnumAllocContexts(enum_alloc_context_func* fn, void* param)
@@ -350,22 +347,60 @@ void GCToEEInterface::GcEnumAllocContexts(enum_alloc_context_func* fn, void* par
     }
 }
 
-bool GCToEEInterface::IsPreemptiveGCDisabled(Thread * pThread)
+
+uint8_t* GCToEEInterface::GetLoaderAllocatorObjectForGC(Object* pObject)
 {
-    WRAPPER_NO_CONTRACT;
-    return !!pThread->PreemptiveGCDisabled();
+    CONTRACTL
+    {
+        NOTHROW;
+        GC_NOTRIGGER;
+    }
+    CONTRACTL_END;
+
+    return pObject->GetMethodTable()->GetLoaderAllocatorObjectForGC();
 }
 
-void GCToEEInterface::EnablePreemptiveGC(Thread * pThread)
+bool GCToEEInterface::IsPreemptiveGCDisabled()
 {
     WRAPPER_NO_CONTRACT;
-    pThread->EnablePreemptiveGC();
+
+    Thread* pThread = ::GetThread();
+    if (pThread)
+    {
+        return !!pThread->PreemptiveGCDisabled();
+    }
+
+    return false;
 }
 
-void GCToEEInterface::DisablePreemptiveGC(Thread * pThread)
+bool GCToEEInterface::EnablePreemptiveGC()
 {
     WRAPPER_NO_CONTRACT;
-    pThread->DisablePreemptiveGC();
+
+    bool bToggleGC = false;
+    Thread* pThread = ::GetThread();
+
+    if (pThread)
+    {
+        bToggleGC = !!pThread->PreemptiveGCDisabled();
+        if (bToggleGC)
+        {
+            pThread->EnablePreemptiveGC();
+        }
+    }
+
+    return bToggleGC;
+}
+
+void GCToEEInterface::DisablePreemptiveGC()
+{
+    WRAPPER_NO_CONTRACT;
+
+    Thread* pThread = ::GetThread();
+    if (pThread)
+    {
+        pThread->DisablePreemptiveGC();
+    }
 }
 
 Thread* GCToEEInterface::GetThread()
@@ -373,12 +408,6 @@ Thread* GCToEEInterface::GetThread()
     WRAPPER_NO_CONTRACT;
 
     return ::GetThread();
-}
-
-bool GCToEEInterface::TrapReturningThreads()
-{
-    WRAPPER_NO_CONTRACT;
-    return !!g_TrapReturningThreads;
 }
 
 struct BackgroundThreadStubArgs
@@ -850,10 +879,17 @@ void GCToEEInterface::StompWriteBarrier(WriteBarrierParameters* args)
         g_lowest_address = args->lowest_address;
         VolatileStore(&g_highest_address, args->highest_address);
 
-#if defined(_ARM64_)
+#if defined(_ARM64_) || defined(_ARM_)
         // Need to reupdate for changes to g_highest_address g_lowest_address
         is_runtime_suspended = (stompWBCompleteActions & SWB_EE_RESTART) || args->is_runtime_suspended;
         stompWBCompleteActions |= ::StompWriteBarrierResize(is_runtime_suspended, args->requires_upper_bounds_check);
+
+#ifdef _ARM_
+        if (stompWBCompleteActions & SWB_ICACHE_FLUSH)
+        {
+            ::FlushWriteBarrierInstructionCache();
+        }
+#endif
 
         is_runtime_suspended = (stompWBCompleteActions & SWB_EE_RESTART) || args->is_runtime_suspended;
         if(!is_runtime_suspended)
@@ -973,7 +1009,7 @@ bool GCToEEInterface::ForceFullGCToBeBlocking()
     // a blocking GC. In the past, this workaround was done to fix an Stress AV, but the root
     // cause of the AV was never discovered and this workaround remains in place.
     //
-    // It would be nice if this were not necessary. However, it's not clear if the aformentioned
+    // It would be nice if this were not necessary. However, it's not clear if the aforementioned
     // stress bug is still lurking and will return if this workaround is removed. We should
     // do some experiments: remove this workaround and see if the stress bug still repros.
     // If so, we should find the root cause instead of relying on this.
@@ -1156,7 +1192,7 @@ namespace
     bool CreateSuspendableThread(
         void (*threadStart)(void*),
         void* argument,
-        const char* name)
+        const wchar_t* name)
     {
         LIMITED_METHOD_CONTRACT;
 
@@ -1211,25 +1247,7 @@ namespace
 
             return 0;
         };
-
-        InlineSString<MaxThreadNameSize> wideName;
-        const WCHAR* namePtr = nullptr;
-        EX_TRY
-        {
-            if (name != nullptr)
-            {
-                wideName.SetUTF8(name);
-                namePtr = wideName.GetUnicode();
-            }
-        }
-        EX_CATCH
-        {
-            // we're not obligated to provide a name - if it's not valid,
-            // just report nullptr as the name.
-        }
-        EX_END_CATCH(SwallowAllExceptions)
-
-        if (!args.Thread->CreateNewThread(0, threadStub, &args, namePtr))
+        if (!args.Thread->CreateNewThread(0, threadStub, &args, name))
         {
             args.Thread->DecExternalCount(FALSE);
             args.ThreadStartedEvent.CloseEvent();
@@ -1257,7 +1275,7 @@ namespace
     bool CreateNonSuspendableThread(
         void (*threadStart)(void*),
         void* argument,
-        const char* name)
+        const wchar_t* name)
     {
         LIMITED_METHOD_CONTRACT;
 
@@ -1289,7 +1307,7 @@ namespace
             return 0;
         };
 
-        args.Thread = Thread::CreateUtilityThread(Thread::StackSize_Medium, threadStub, &args);
+        args.Thread = Thread::CreateUtilityThread(Thread::StackSize_Medium, threadStub, &args, name);
         if (args.Thread == INVALID_HANDLE_VALUE)
         {
             args.ThreadStartedEvent.CloseEvent();
@@ -1308,14 +1326,31 @@ namespace
 
 bool GCToEEInterface::CreateThread(void (*threadStart)(void*), void* arg, bool is_suspendable, const char* name)
 {
+    InlineSString<MaxThreadNameSize> wideName;
+    const WCHAR* namePtr = nullptr;
+    EX_TRY
+    {
+        if (name != nullptr)
+        {
+            wideName.SetUTF8(name);
+            namePtr = wideName.GetUnicode();
+        }
+    }
+        EX_CATCH
+    {
+        // we're not obligated to provide a name - if it's not valid,
+        // just report nullptr as the name.
+    }
+    EX_END_CATCH(SwallowAllExceptions)
+
     LIMITED_METHOD_CONTRACT;
     if (is_suspendable)
     {
-        return CreateSuspendableThread(threadStart, arg, name);
+        return CreateSuspendableThread(threadStart, arg, namePtr);
     }
     else
     {
-        return CreateNonSuspendableThread(threadStart, arg, name);
+        return CreateNonSuspendableThread(threadStart, arg, namePtr);
     }
 }
 

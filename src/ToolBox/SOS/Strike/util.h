@@ -60,6 +60,10 @@ struct IMDInternalImport;
 #define POINTERSIZE_TYPE "I32"
 #endif
 
+#ifndef TARGET_POINTER_SIZE
+#define TARGET_POINTER_SIZE POINTERSIZE_BYTES
+#endif // TARGET_POINTER_SIZE
+
 #if defined(_MSC_VER)
 #pragma warning(disable:4510 4512 4610)
 #endif
@@ -76,6 +80,19 @@ struct IMDInternalImport;
 #ifdef _DEBUG
 #define ASSERT_CHECK(expr, msg, reason)         \
         do { if (!(expr) ) { ExtOut(reason); ExtOut(msg); ExtOut(#expr); DebugBreak(); } } while (0)
+#endif
+
+// The native symbol reader dll name
+#if defined(_AMD64_)
+#define NATIVE_SYMBOL_READER_DLL W("Microsoft.DiaSymReader.Native.amd64.dll")
+#elif defined(_X86_)
+#define NATIVE_SYMBOL_READER_DLL W("Microsoft.DiaSymReader.Native.x86.dll")
+#elif defined(_ARM_)
+#define NATIVE_SYMBOL_READER_DLL W("Microsoft.DiaSymReader.Native.arm.dll")
+#elif defined(_ARM64_)
+// Use diasymreader until the package has an arm64 version - issue #7360
+//#define NATIVE_SYMBOL_READER_DLL W("Microsoft.DiaSymReader.Native.arm64.dll")
+#define NATIVE_SYMBOL_READER_DLL W("diasymreader.dll")
 #endif
 
 // PREFIX macros - Begin
@@ -1370,7 +1387,8 @@ const char *ElementTypeName (unsigned type);
 void DisplayFields (CLRDATA_ADDRESS cdaMT, DacpMethodTableData *pMTD, DacpMethodTableFieldData *pMTFD,
                     DWORD_PTR dwStartAddr = 0, BOOL bFirst=TRUE, BOOL bValueClass=FALSE);
 int GetObjFieldOffset(CLRDATA_ADDRESS cdaObj, __in_z LPCWSTR wszFieldName, BOOL bFirst=TRUE);
-int GetObjFieldOffset(CLRDATA_ADDRESS cdaObj, CLRDATA_ADDRESS cdaMT, __in_z LPCWSTR wszFieldName, BOOL bFirst=TRUE);
+int GetObjFieldOffset(CLRDATA_ADDRESS cdaObj, CLRDATA_ADDRESS cdaMT, __in_z LPCWSTR wszFieldName, BOOL bFirst=TRUE, DacpFieldDescData* pDacpFieldDescData=NULL);
+int GetValueFieldOffset(CLRDATA_ADDRESS cdaMT, __in_z LPCWSTR wszFieldName, DacpFieldDescData* pDacpFieldDescData);
 
 BOOL IsValidToken(DWORD_PTR ModuleAddr, mdTypeDef mb);
 void NameForToken_s(DacpModuleData *pModule, mdTypeDef mb, __out_ecount (capacity_mdName) WCHAR *mdName, size_t capacity_mdName, 
@@ -1942,27 +1960,6 @@ void PrintNotReachableInRange(TADDR rngStart, TADDR rngEnd, BOOL bExcludeReadyFo
     HeapStat* stat, BOOL bShort);
 
 const char *EHTypeName(EHClauseType et);
-
-template<typename T>
-inline const LPCSTR GetTransparency(const T &t)
-{
-    if (!t.bHasCriticalTransparentInfo)
-    {
-        return "Not calculated";
-    }
-    else if (t.bIsCritical && !t.bIsTreatAsSafe)
-    {
-        return "Critical";
-    }
-    else if (t.bIsCritical)
-    {
-        return "Safe critical";
-    }
-    else
-    {
-        return "Transparent";
-    }
-}
 
 struct StringHolder
 {

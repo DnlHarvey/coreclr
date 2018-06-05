@@ -7,7 +7,6 @@
 #pragma hdrstop
 #endif
 
-#ifndef LEGACY_BACKEND
 // return op that is the store equivalent of the given load opcode
 genTreeOps storeForm(genTreeOps loadForm)
 {
@@ -160,13 +159,13 @@ void Rationalizer::RewriteNodeAsCall(GenTree**             use,
     assert(JITtype2varType(sig.retType) == tree->gtType);
 #endif // DEBUG
 
-    call = comp->fgMorphArgs(call);
-    // Determine if this call has changed any codegen requirements.
-    comp->fgCheckArgCnt();
-
 #ifdef FEATURE_READYTORUN_COMPILER
     call->gtCall.setEntryPoint(entryPoint);
 #endif
+
+    call = comp->fgMorphArgs(call);
+    // Determine if this call has changed any codegen requirements.
+    comp->fgCheckArgCnt();
 
     // Replace "tree" with "call"
     if (parents.Height() > 1)
@@ -922,8 +921,8 @@ Compiler::fgWalkResult Rationalizer::RewriteNode(GenTree** useEdge, ArrayStack<G
 #endif // FEATURE_SIMD
 
         default:
-            // JCMP, CMP, SETCC and JCC nodes should not be present in HIR.
-            assert(!node->OperIs(GT_CMP, GT_SETCC, GT_JCC, GT_JCMP));
+            // These nodes should not be present in HIR.
+            assert(!node->OperIs(GT_CMP, GT_SETCC, GT_JCC, GT_JCMP, GT_LOCKADD));
             break;
     }
 
@@ -1068,4 +1067,3 @@ void Rationalizer::DoPhase()
 
     comp->compRationalIRForm = true;
 }
-#endif // LEGACY_BACKEND

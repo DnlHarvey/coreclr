@@ -26,7 +26,6 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 #pragma hdrstop
 #endif
 
-#ifndef LEGACY_BACKEND // This file is ONLY used for the RyuJIT backend that uses the linear scan register allocator
 #ifndef _TARGET_64BIT_ // DecomposeLongs is only used on 32-bit platforms
 
 #include "decomposelongs.h"
@@ -1924,12 +1923,7 @@ GenTree* DecomposeLongs::EnsureIntSized(GenTree* node, bool signExtend)
         return node;
     }
 
-    GenTree* const cast = m_compiler->gtNewCastNode(TYP_INT, node, node->TypeGet());
-    if (!signExtend)
-    {
-        cast->gtFlags |= GTF_UNSIGNED;
-    }
-
+    GenTree* const cast = m_compiler->gtNewCastNode(TYP_INT, node, !signExtend, node->TypeGet());
     Range().InsertAfter(node, cast);
     return cast;
 }
@@ -2005,4 +1999,3 @@ genTreeOps DecomposeLongs::GetLoOper(genTreeOps oper)
 }
 
 #endif // !_TARGET_64BIT_
-#endif // !LEGACY_BACKEND

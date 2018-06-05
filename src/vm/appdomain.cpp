@@ -74,12 +74,6 @@
 
 #include "clrprivtypecachewinrt.h"
 
-
-#pragma warning(push)
-#pragma warning(disable:4324) 
-#include "marvin32.h"
-#pragma warning(pop)
-
 // this file handles string conversion errors for itself
 #undef  MAKE_TRANSLATIONFAILED
 
@@ -2765,8 +2759,6 @@ void SystemDomain::LoadBaseSystemClasses()
 
     // Load String
     g_pStringClass = MscorlibBinder::LoadPrimitiveType(ELEMENT_TYPE_STRING);
-    _ASSERTE(g_pStringClass->GetBaseSize() == ObjSizeOf(StringObject)+sizeof(WCHAR));
-    _ASSERTE(g_pStringClass->GetComponentSize() == 2);
 
     // Used by Buffer::BlockCopy
     g_pByteArrayMT = ClassLoader::LoadArrayTypeThrowing(
@@ -4115,7 +4107,7 @@ void AppDomain::Init()
     m_LoaderAllocator.Init(this);
 
 #ifndef CROSSGEN_COMPILE
-    //Allocate the threadpool entry before the appdomin id list. Otherwise,
+    //Allocate the threadpool entry before the appdomain id list. Otherwise,
     //the thread pool list will be out of sync if insertion of id in 
     //the appdomain fails. 
     m_tpIndex = PerAppDomainTPCountList::AddNewTPIndex();    
@@ -8026,7 +8018,7 @@ void AppDomain::Exit(BOOL fRunFinalizers, BOOL fAsyncExit)
     // have exited the domain.
     //
 #ifdef FEATURE_TIERED_COMPILATION
-    m_tieredCompilationManager.Shutdown(FALSE);
+    m_tieredCompilationManager.Shutdown();
 #endif
 
     //

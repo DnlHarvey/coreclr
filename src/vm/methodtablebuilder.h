@@ -1316,10 +1316,9 @@ private:
         bool fNoSanityChecks;
         bool fSparse;                           // Set to true if a sparse interface is being used.
 
-#ifdef FEATURE_COMINTEROP
         // Com Interop, ComWrapper classes extend from ComObject
         bool fIsComObjectType;                  // whether this class is an instance of ComObject class
-
+#ifdef FEATURE_COMINTEROP
         bool fIsMngStandardItf;                 // Set to true if the interface is a manages standard interface.
         bool fComEventItfType;                  // Set to true if the class is a special COM event interface.
         bool fIsRedirectedInterface;            // Set to true if the class is an interface redirected for WinRT
@@ -2904,14 +2903,14 @@ private:
 
     VOID    CheckForNativeHFA();
 
-#ifdef FEATURE_UNIX_AMD64_STRUCT_PASSING
+#ifdef UNIX_AMD64_ABI
     // checks whether the struct is enregisterable.
     void SystemVAmd64CheckForPassStructInRegister();
     void SystemVAmd64CheckForPassNativeStructInRegister();
     // Store the eightbyte classification into the EEClass
     void StoreEightByteClassification(SystemVStructRegisterPassingHelper* helper);
 
-#endif // FEATURE_UNIX_AMD64_STRUCT_PASSING
+#endif // UNIX_AMD64_ABI
 
     // this accesses the field size which is temporarily stored in m_pMTOfEnclosingClass
     // during class loading. Don't use any other time

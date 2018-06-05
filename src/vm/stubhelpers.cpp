@@ -1166,6 +1166,7 @@ FCIMPL2(void*, StubHelpers::GetDelegateTarget, DelegateObject *pThisUNSAFE, UINT
 #if defined(_WIN64)
     UINT_PTR target = (UINT_PTR)orefThis->GetMethodPtrAux();
 
+    // See code:GenericPInvokeCalliHelper
     // The lowest bit is used to distinguish between MD and target on 64-bit.
     target = (target << 1) | 1;
 
@@ -1912,7 +1913,7 @@ FCIMPL2(void, StubHelpers::LogPinnedArgument, MethodDesc *target, Object *pinned
 }
 FCIMPLEND
 
-#ifdef _WIN64
+#ifdef _TARGET_64BIT_
 FCIMPL0(void*, StubHelpers::GetStubContextAddr)
 {
     FCALL_CONTRACT;
@@ -1921,7 +1922,7 @@ FCIMPL0(void*, StubHelpers::GetStubContextAddr)
     UNREACHABLE_MSG("This is a JIT intrinsic!");
 }
 FCIMPLEND
-#endif // _WIN64
+#endif // _TARGET_64BIT_
 
 #ifdef MDA_SUPPORTED    
 FCIMPL0(void, StubHelpers::TriggerGCForMDA)

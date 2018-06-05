@@ -1146,6 +1146,7 @@ void SafeVariantClear(VARIANT* pVar)
 
             SCAN_EHMARKER_END_TRY();
         }
+#pragma warning(suppress: 4101)
         PAL_CPP_CATCH_DERIVED(OutOfMemoryException, obj)
         {
             SCAN_EHMARKER_CATCH();
@@ -2310,8 +2311,9 @@ void OleVariant::MarshalLPSTRRArrayComToOle(BASEARRAYREF *pComArray, void *oleAr
                 ThrowOutOfMemory();
 
             // Convert the unicode string to an ansi string.
-            InternalWideToAnsi(stringRef->GetBuffer(), Length, lpstr, allocLength, fBestFitMapping, fThrowOnUnmappableChar);
-            lpstr[Length] = 0;
+            int bytesWritten = InternalWideToAnsi(stringRef->GetBuffer(), Length, lpstr, allocLength, fBestFitMapping, fThrowOnUnmappableChar);
+            _ASSERTE(bytesWritten >= 0 && bytesWritten < allocLength);
+            lpstr[bytesWritten] = 0;
         }
 
         *pOle++ = lpstr;

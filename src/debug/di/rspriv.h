@@ -2316,7 +2316,7 @@ public:
     CorDebugInterfaceVersion    GetDebuggerVersion() const;
 
 #ifdef FEATURE_CORESYSTEM
-	HMODULE GetTargetCLR() { return m_targetCLR; }
+    HMODULE GetTargetCLR() { return m_targetCLR; }
 #endif
 
 private:
@@ -2338,7 +2338,7 @@ private:
 //Note - this code could be useful outside coresystem, but keeping the change localized
 // because we are late in the win8 release
 #ifdef FEATURE_CORESYSTEM
-	HMODULE m_targetCLR;
+    HMODULE m_targetCLR;
 #endif
 };
 
@@ -2480,12 +2480,12 @@ public:
     // ICorDebugAppDomain3 APIs
     //-----------------------------------------------------------
     COM_METHOD GetCachedWinRTTypesForIIDs(
-					    ULONG32               cGuids,
-    					GUID                * guids,
-	    				ICorDebugTypeEnum * * ppTypesEnum);
+                        ULONG32               cGuids,
+                        GUID                * guids,
+                        ICorDebugTypeEnum * * ppTypesEnum);
 
     COM_METHOD GetCachedWinRTTypes(
-						ICorDebugGuidToTypeEnum * * ppType);
+                        ICorDebugGuidToTypeEnum * * ppType);
 
     //-----------------------------------------------------------
     // ICorDebugAppDomain4
@@ -2730,6 +2730,7 @@ public:
         {
             case cInband: return "cInband";
             case cInband_NotNewEvent: return "cInband_NotNewEvent";
+            case cFirstChanceHijackStarted: return "cFirstChanceHijackStarted";
             case cInbandHijackComplete: return "cInbandHijackComplete";
             case cInbandExceptionRetrigger: return "cInbandExceptionRetrigger";
             case cBreakpointRequiringHijack: return "cBreakpointRequiringHijack";
@@ -6134,22 +6135,21 @@ public:
     void CleanupStack();
     void MarkStackFramesDirty();
 
-#if !defined(DBG_TARGET_ARM) // @ARMTODO
 
 #if defined(DBG_TARGET_X86)
     // Converts the values in the floating point register area of the context to real number values.
     void Get32bitFPRegisters(CONTEXT * pContext);
 
-#elif defined(DBG_TARGET_AMD64) ||  defined(DBG_TARGET_ARM64)
+#elif defined(DBG_TARGET_AMD64) ||  defined(DBG_TARGET_ARM64) || defined(DBG_TARGET_ARM)
     // Converts the values in the floating point register area of the context to real number values.
     void Get64bitFPRegisters(FPRegister64 * rgContextFPRegisters, int start, int nRegisters);
+
 #endif // DBG_TARGET_X86
 
    // Initializes the float state members of this instance of CordbThread. This function gets the context and
    // converts the floating point values from their context representation to real number values.    
    void LoadFloatState();
 
-#endif //!DBG_TARGET_ARM @ARMTODO
 
     HRESULT SetIP(  bool fCanSetIPOnly,
                     CordbNativeCode * pNativeCode,
@@ -6297,11 +6297,9 @@ public:
     //  Instead, we mark m_fFramesFresh in CleanupStack() and clear the cache only when it is used next time.
     CDynArray<CordbFrame *> m_stackFrames;
 
-#if !defined(DBG_TARGET_ARM) // @ARMTODO
     bool                  m_fFloatStateValid;
     unsigned int          m_floatStackTop;
     double                m_floatValues[DebuggerIPCE_FloatCount];
-#endif // !DBG_TARGET_ARM @ARMTODO
 
 private:
     // True for the window after an Exception callback, but before it's been continued.
@@ -7105,11 +7103,9 @@ public:
                                            ICorDebugValue **ppValue);
     UINT_PTR * GetAddressOfRegister(CorDebugRegister regNum) const;
     CORDB_ADDRESS GetLeftSideAddressOfRegister(CorDebugRegister regNum) const;
-#if !defined(DBG_TARGET_ARM) // @ARMTODO
     HRESULT GetLocalFloatingPointValue(DWORD index,
                                             CordbType * pType,
                                             ICorDebugValue **ppValue);
-#endif // !DBG_TARGET_ARM @ARMTODO
 
 
     CORDB_ADDRESS GetLSStackAddress(ICorDebugInfo::RegNum regNum, signed offset);
@@ -7126,10 +7122,10 @@ public:
     bool      IsFunclet();
     bool      IsFilterFunclet();
 
-#if defined(DBG_TARGET_WIN64) || defined(DBG_TARGET_ARM)
+#ifdef WIN64EXCEPTIONS
     // return the offset of the parent method frame at which an exception occurs
     SIZE_T    GetParentIP();
-#endif // DBG_TARGET_WIN64 || DBG_TARGET_ARM
+#endif // WIN64EXCEPTIONS
 
     TADDR GetAmbientESP() { return m_taAmbientESP; }
     TADDR GetReturnRegisterValue();
@@ -10590,43 +10586,17 @@ private:
     HRESULT EnableSSAfterBP();
     bool GetEEThreadCantStopHelper();
 
-    DWORD_PTR GetTlsSlot(SIZE_T slot);
+    HRESULT GetTlsSlot(DWORD slot, REMOTE_PTR *pValue);
+    HRESULT SetTlsSlot(DWORD slot, REMOTE_PTR value);
     REMOTE_PTR GetPreDefTlsSlot(SIZE_T slot, bool * pRead);
 
     void * m_pPatchSkipAddress;
 
-
-
-    /* 
-     * This abstracts away an overload of the OS thread's TLS slot. In 
-     * particular the runtime may or may not have created a thread object for
-     * a particular OS thread at any point.
-     *
-     * If the runtime has created a thread object, then it stores a pointer to
-     * that thread object in the thread's TLS slot.
-     *
-     * If not, then interop-debugging uses that TLS slot to store temporary 
-     * information.
-     *
-     * To determine this, interop-debugging will set the low bit.  Thus when
-     * we read the TLS slot, if it is non-NULL, anything w/o the low bit set
-     * is an EE thread object ptr.  Anything with the low bit set is an 
-     * interop-debugging value.  Any NULL is null, and an indicator that 
-     * there does not exist a runtime thread object for this thread yet.
-     *
-     */
-    REMOTE_PTR m_pEEThread;
-    REMOTE_PTR m_pdwTlsValue;
-    BOOL m_fValidTlsData;
-
     UINT m_continueCountCached;
 
-    void CacheEEDebuggerWord();
-    HRESULT SetEEThreadValue(REMOTE_PTR EETlsValue);
-
     DWORD_PTR GetEEThreadValue();
-    REMOTE_PTR GetClrModuleTlsDataAddress();
     REMOTE_PTR GetEETlsDataBlock();
+    HRESULT GetClrModuleTlsDataAddress(REMOTE_PTR* pAddress);
 
 public:
     HRESULT GetEEDebuggerWord(REMOTE_PTR *pValue);

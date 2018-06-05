@@ -3,6 +3,30 @@
     {
       "environment": {},
       "enabled": true,
+      "continueOnError": true,
+      "alwaysRun": false,
+      "displayName": "Run AgentTools/Begin.sh",
+      "timeoutInMinutes": 0,
+      "condition": "succeededOrFailed()",
+      "task": {
+        "id": "e213ff0f-5d5c-4791-802d-52ea3e7be1f1",
+        "versionSpec": "2.*",
+        "definitionType": "task"
+      },
+      "inputs": {
+        "targetType": "inline",
+        "filePath": "",
+        "arguments": "",
+        "script": "if (Test-Path \"$(AgentToolsPath)\\Begin.sh\") {\n   \"Begin.sh script found. Executing...\"\n   cd $(AgentToolsPath)\n   & $(AgentToolsPath)\\Begin.sh\n} else {\n   \"Begin.sh script does not exist. Moving on...\"\n}",
+        "errorActionPreference": "continue",
+        "failOnStderr": "false",
+        "ignoreLASTEXITCODE": "true",
+        "workingDirectory": ""
+      }
+    },
+    {
+      "environment": {},
+      "enabled": true,
       "continueOnError": false,
       "alwaysRun": false,
       "displayName": "Initialize tools",
@@ -115,7 +139,7 @@
       },
       "inputs": {
         "filename": "docker",
-        "arguments": "run --rm $(DockerCommonRunArgs) ./sync.sh",
+        "arguments": "run --rm $(DockerCommonRunArgs) ./sync.sh -- /p:BuildType=$(PB_BuildType)",
         "workingFolder": "",
         "failOnStandardError": "false"
       }
@@ -155,7 +179,7 @@
       },
       "inputs": {
         "filename": "docker",
-        "arguments": "run --rm $(DockerCommonRunArgs) ./build-packages.sh -BuildType=$(PB_BuildType) -BuildArch=$(Architecture) $(PB_AdditionalBuildArgs) -- /p:OfficialBuildId=$(OfficialBuildId)",
+        "arguments": "run --rm $(DockerCommonRunArgs) ./build-packages.sh -BuildType=$(PB_BuildType) -BuildArch=$(Architecture) $(PB_AdditionalBuildArgs) -- /p:OutputRID=$(PB_OutputRID) /p:OfficialBuildId=$(OfficialBuildId)",
         "workingFolder": "",
         "failOnStandardError": "false"
       }
@@ -175,7 +199,7 @@
       },
       "inputs": {
         "filename": "docker",
-        "arguments": "run --rm $(DockerCommonRunArgs) ./publish-packages.sh -AzureAccount=$(CloudDropAccountName) -AzureToken=$(CloudDropAccessToken) -BuildType=$(PB_BuildType) -BuildArch=$(Platform) -Container=$(PB_ContainerName) -distroRid=$(Rid) -PublishPackages -- /p:RelativePath=$(PB_BlobNamePrefix)$(PB_BuildType)/pkg /p:PublishFlatContainer=$(PublishFlat) /p:OverwriteOnPublish=true",
+        "arguments": "run --rm $(DockerCommonRunArgs) ./publish-packages.sh -AzureAccount=$(CloudDropAccountName) -AzureToken=$(CloudDropAccessToken) -BuildType=$(PB_BuildType) -BuildArch=$(Platform) -Container=$(PB_ContainerName) -PublishPackages -- /p:RelativePath=$(PB_BlobNamePrefix)$(PB_BuildType)/pkg /p:PublishFlatContainer=$(PublishFlat) /p:OverwriteOnPublish=true",
         "workingFolder": "",
         "failOnStandardError": "false"
       }
@@ -195,7 +219,7 @@
       },
       "inputs": {
         "filename": "docker",
-        "arguments": "run --rm $(DockerCommonRunArgs) ./publish-packages.sh -AzureAccount=$(CloudDropAccountName) -AzureToken=$(CloudDropAccessToken) -BuildType=$(PB_BuildType) -BuildArch=$(Platform) -Container=$(PB_ContainerName) -distroRid=$(Rid) -PublishSymbols -- /p:RelativePath=$(PB_BlobNamePrefix)$(PB_BuildType)/symbolpkg /p:OverwriteOnPublish=true",
+        "arguments": "run --rm $(DockerCommonRunArgs) ./publish-packages.sh -AzureAccount=$(CloudDropAccountName) -AzureToken=$(CloudDropAccessToken) -BuildType=$(PB_BuildType) -BuildArch=$(Platform) -Container=$(PB_ContainerName) -PublishSymbols -- /p:RelativePath=$(PB_BlobNamePrefix)$(PB_BuildType)/symbolpkg /p:OverwriteOnPublish=true",
         "workingFolder": "",
         "failOnStandardError": "false"
       }
@@ -215,7 +239,7 @@
       },
       "inputs": {
         "filename": "docker",
-        "arguments": "run --rm $(DockerCommonRunArgs) ./publish-packages.sh -AzureAccount=$(CloudDropAccountName) -AzureToken=$(CloudDropAccessToken) -BuildType=$(PB_BuildType) -BuildArch=$(Platform) -Container=$(PB_ContainerName) -distroRid=$(Rid) -PublishTestNativeBins -- /p:RelativePath=$(PB_BlobNamePrefix)$(PB_BuildType)/TestNativeBins/$(Rid)-$(Architecture) /p:OverwriteOnPublish=true",
+        "arguments": "run --rm $(DockerCommonRunArgs) ./publish-packages.sh -AzureAccount=$(CloudDropAccountName) -AzureToken=$(CloudDropAccessToken) -BuildType=$(PB_BuildType) -BuildArch=$(Platform) -Container=$(PB_ContainerName) -PublishTestNativeBins -- /p:RelativePath=$(PB_BlobNamePrefix)$(PB_BuildType)/TestNativeBins/$(Rid)-$(Architecture) /p:OverwriteOnPublish=true",
         "workingFolder": "",
         "failOnStandardError": "false"
       }
@@ -332,21 +356,24 @@
       "environment": {},
       "enabled": true,
       "continueOnError": true,
-      "alwaysRun": false,
-      "displayName": "Cleanup VSTS Agent",
+      "alwaysRun": true,
+      "displayName": "Run AgentTools/End.sh",
       "timeoutInMinutes": 0,
-      "condition": "always()",
-      "refName": "Task15",
+      "condition": "succeededOrFailed()",
       "task": {
-        "id": "d9bafed4-0b18-4f58-968d-86655b4d2ce9",
-        "versionSpec": "1.*",
+        "id": "e213ff0f-5d5c-4791-802d-52ea3e7be1f1",
+        "versionSpec": "2.*",
         "definitionType": "task"
       },
       "inputs": {
-        "filename": "$(Build.SourcesDirectory)/Tools/msbuild.sh",
-        "arguments": "cleanupagent.proj /p:AgentDirectory=$(Agent.HomeDirectory) /p:DoClean=$(PB_CleanAgent)",
-        "workingFolder": "$(Build.SourcesDirectory)/Tools/scripts/vstsagent/",
-        "failOnStandardError": "false"
+        "targetType": "inline",
+        "filePath": "",
+        "arguments": "",
+        "script": "if (Test-Path \"$(AgentToolsPath)\\End.sh\") {\n   \"End.sh script found. Executing...\"\n   cd $(AgentToolsPath)\n   & $(AgentToolsPath)\\End.sh\n} else {\n   \"End.sh script does not exist. Moving on...\"\n}",
+        "errorActionPreference": "continue",
+        "failOnStderr": "false",
+        "ignoreLASTEXITCODE": "true",
+        "workingDirectory": ""
       }
     }
   ],
@@ -470,6 +497,9 @@
     },
     "VsoRepositoryName": {
       "value": "DotNet-CoreCLR-Trusted"
+    },
+    "PB_OutputRID": {
+      "value": ""
     }
   },
   "demands": [

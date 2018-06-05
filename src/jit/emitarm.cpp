@@ -86,8 +86,6 @@ const emitJumpKind emitReverseJumpKinds[] = {
 
 size_t emitter::emitSizeOfInsDsc(instrDesc* id)
 {
-    assert(!emitIsTinyInsDsc(id));
-
     if (emitIsScnsInsDsc(id))
         return SMALL_IDSC_SIZE;
 
@@ -782,10 +780,10 @@ bool emitter::emitInsIsLoadOrStore(instruction ins)
  *  Returns the specific encoding of the given CPU instruction and format
  */
 
-size_t emitter::emitInsCode(instruction ins, insFormat fmt)
+emitter::code_t emitter::emitInsCode(instruction ins, insFormat fmt)
 {
     // clang-format off
-    const static size_t insCodes1[] =
+    const static code_t insCodes1[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                ) e1,
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            ) e1,
@@ -797,7 +795,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
         #define INST9(id, nm, fp, ldst, fmt, e1, e2, e3, e4, e5, e6, e7, e8, e9) e1,
         #include "instrs.h"
     };
-    const static size_t insCodes2[] =
+    const static code_t insCodes2[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                )
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            ) e2,
@@ -809,7 +807,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
         #define INST9(id, nm, fp, ldst, fmt, e1, e2, e3, e4, e5, e6, e7, e8, e9) e2,
         #include "instrs.h"
     };
-    const static size_t insCodes3[] =
+    const static code_t insCodes3[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                )
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            )
@@ -821,7 +819,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
         #define INST9(id, nm, fp, ldst, fmt, e1, e2, e3, e4, e5, e6, e7, e8, e9) e3,
         #include "instrs.h"
     };
-    const static size_t insCodes4[] =
+    const static code_t insCodes4[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                )
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            )
@@ -833,7 +831,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
         #define INST9(id, nm, fp, ldst, fmt, e1, e2, e3, e4, e5, e6, e7, e8, e9) e4,
         #include "instrs.h"
     };
-    const static size_t insCodes5[] =
+    const static code_t insCodes5[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                )
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            )
@@ -845,7 +843,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
         #define INST9(id, nm, fp, ldst, fmt, e1, e2, e3, e4, e5, e6, e7, e8, e9) e5,
         #include "instrs.h"
     };
-    const static size_t insCodes6[] =
+    const static code_t insCodes6[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                )
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            )
@@ -857,7 +855,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
         #define INST9(id, nm, fp, ldst, fmt, e1, e2, e3, e4, e5, e6, e7, e8, e9) e6,
         #include "instrs.h"
     };
-    const static size_t insCodes7[] =
+    const static code_t insCodes7[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                )
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            )
@@ -869,7 +867,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
         #define INST9(id, nm, fp, ldst, fmt, e1, e2, e3, e4, e5, e6, e7, e8, e9) e7,
         #include "instrs.h"
     };
-    const static size_t insCodes8[] =
+    const static code_t insCodes8[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                )
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            )
@@ -881,7 +879,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
         #define INST9(id, nm, fp, ldst, fmt, e1, e2, e3, e4, e5, e6, e7, e8, e9) e8,
         #include "instrs.h"
     };
-    const static size_t insCodes9[] =
+    const static code_t insCodes9[] =
     {
         #define INST1(id, nm, fp, ldst, fmt, e1                                )
         #define INST2(id, nm, fp, ldst, fmt, e1, e2                            )
@@ -916,7 +914,7 @@ size_t emitter::emitInsCode(instruction ins, insFormat fmt)
     const static insFormat formatEncode2G[2] = { IF_T1_J3, IF_T2_M1 };
     // clang-format on
 
-    size_t    code   = BAD_CODE;
+    code_t    code   = BAD_CODE;
     insFormat insFmt = emitInsFormat(ins);
     bool      found  = false;
     int       index  = 0;
@@ -1673,7 +1671,7 @@ void emitter::emitIns_R(instruction ins, emitAttr attr, regNumber reg)
  */
 
 void emitter::emitIns_R_I(
-    instruction ins, emitAttr attr, regNumber reg, int imm, insFlags flags /* = INS_FLAGS_DONT_CARE */)
+    instruction ins, emitAttr attr, regNumber reg, ssize_t imm, insFlags flags /* = INS_FLAGS_DONT_CARE */)
 
 {
     insFormat fmt = IF_NONE;
@@ -1903,14 +1901,7 @@ void emitter::emitIns_R_I(
             }
             else
             {
-#ifndef LEGACY_BACKEND
                 assert(!"emitIns_R_I: immediate doesn't fit into the instruction");
-#else  // LEGACY_BACKEND
-                // Load val into a register
-                regNumber valReg = codeGen->regSet.rsGrabReg(RBM_ALLINT & ~genRegMask(reg));
-                codeGen->instGen_Set_Reg_To_Imm(EA_PTRSIZE, valReg, (ssize_t)imm);
-                emitIns_R_R(ins, attr, reg, valReg, flags);
-#endif // LEGACY_BACKEND
                 return;
             }
             break;
@@ -2985,8 +2976,11 @@ void emitter::emitIns_R_R_R(instruction ins,
             }
             __fallthrough;
 
+#if !defined(USE_HELPERS_FOR_INT_DIV)
         case INS_sdiv:
         case INS_udiv:
+#endif // !USE_HELPERS_FOR_INT_DIV
+
             assert(insDoesNotSetFlags(flags));
             fmt = IF_T2_C5;
             sf  = INS_FLAGS_NOT_SET;
@@ -3728,11 +3722,8 @@ void emitter::emitIns_R_C(instruction ins, emitAttr attr, regNumber reg, CORINFO
 
     if (isFloatReg(regTmp))
     {
-#ifndef LEGACY_BACKEND
         assert(!"emitIns_R_C() cannot be called with floating point target");
-#else  // LEGACY_BACKEND
-        regTmp = codeGen->regSet.rsPickFreeReg(RBM_ALLINT & ~genRegMask(reg));
-#endif // LEGACY_BACKEND
+        return;
     }
 
     // Load address of CLS_VAR into a register
@@ -3751,46 +3742,7 @@ void emitter::emitIns_R_C(instruction ins, emitAttr attr, regNumber reg, CORINFO
 
 void emitter::emitIns_C_R(instruction ins, emitAttr attr, CORINFO_FIELD_HANDLE fldHnd, regNumber reg, int offs)
 {
-#ifndef LEGACY_BACKEND
-    assert(!"emitIns_C_R not supported for RyuJIT backend");
-#else  // LEGACY_BACKEND
-    if (ins == INS_mov)
-    {
-        assert(!"Please use ins_Store() to select the correct instruction");
-    }
-    assert(emitInsIsStore(ins));
-
-    int     doff = Compiler::eeGetJitDataOffs(fldHnd);
-    ssize_t addr = NULL;
-
-    if (doff >= 0)
-    {
-        NYI_ARM("JitDataOffset static fields");
-    }
-    else if (fldHnd == FLD_GLOBAL_FS)
-    {
-        NYI_ARM("Thread-Local-Storage static fields");
-    }
-    else if (fldHnd == FLD_GLOBAL_DS)
-    {
-        addr = (ssize_t)offs;
-        offs = 0;
-    }
-    else
-    {
-        assert(!jitStaticFldIsGlobAddr(fldHnd));
-        addr = (ssize_t)emitComp->info.compCompHnd->getFieldAddress(fldHnd, NULL);
-        if (addr == NULL)
-            NO_WAY("could not obtain address of static field");
-    }
-
-    regNumber regTmp = codeGen->regSet.rsPickFreeReg(RBM_ALLINT & ~genRegMask(reg));
-
-    // Load address of CLS_VAR into a register
-    codeGen->instGen_Set_Reg_To_Imm(EA_HANDLE_CNS_RELOC, regTmp, addr);
-
-    emitIns_R_R_I(ins, attr, reg, regTmp, offs);
-#endif // LEGACY_BACKEND
+    assert(!"emitIns_C_R not supported");
 }
 
 /*****************************************************************************
@@ -3828,14 +3780,7 @@ void emitter::emitIns_R_AR(instruction ins, emitAttr attr, regNumber ireg, regNu
         }
         else
         {
-#ifndef LEGACY_BACKEND
             assert(!"emitIns_R_AR: immediate doesn't fit in the instruction");
-#else  // LEGACY_BACKEND
-            // Load val into a register
-            regNumber immReg = codeGen->regSet.rsGrabReg(RBM_ALLINT & ~genRegMask(ireg) & ~genRegMask(reg));
-            codeGen->instGen_Set_Reg_To_Imm(EA_PTRSIZE, immReg, (ssize_t)offs);
-            emitIns_R_R_R(INS_add, attr, ireg, reg, immReg);
-#endif // LEGACY_BACKEND
         }
         return;
     }
@@ -3869,11 +3814,8 @@ void emitter::emitIns_R_AI(instruction ins, emitAttr attr, regNumber ireg, ssize
 
         if (isFloatReg(regTmp))
         {
-#ifndef LEGACY_BACKEND
             assert(!"emitIns_R_AI with floating point reg");
-#else  // LEGACY_BACKEND
-            regTmp = codeGen->regSet.rsPickFreeReg(RBM_ALLINT & ~genRegMask(ireg));
-#endif // LEGACY_BACKEND
+            return;
         }
 
         codeGen->instGen_Set_Reg_To_Imm(EA_IS_RELOC(attr) ? EA_HANDLE_CNS_RELOC : EA_PTRSIZE, regTmp, disp);
@@ -4464,12 +4406,8 @@ void emitter::emitIns_Call(EmitCallType          callType,
     {
         assert(emitNoGChelper(Compiler::eeGetHelperNum(methHnd)));
 
-        // This call will preserve the liveness of most registers
-        //
-        // - On the ARM the NOGC helpers will preserve all registers,
-        //   except for those listed in the RBM_CALLEE_TRASH_NOGC mask
-
-        savedSet = RBM_ALLINT & ~RBM_CALLEE_TRASH_NOGC;
+        // Get the set of registers that this call kills and remove it from the saved set.
+        savedSet = RBM_ALLINT & ~emitComp->compNoGCHelperCallKillSet(Compiler::eeGetHelperNum(methHnd));
 
         // In case of Leave profiler callback, we need to preserve liveness of REG_PROFILER_RET_SCRATCH
         if (isProfLeaveCB)
@@ -5001,7 +4939,7 @@ inline unsigned insEncodeBitFieldImm(int imm)
  *  Emit a Thumb-1 instruction (a 16-bit integer as code)
  */
 
-/*static*/ unsigned emitter::emitOutput_Thumb1Instr(BYTE* dst, ssize_t code)
+/*static*/ unsigned emitter::emitOutput_Thumb1Instr(BYTE* dst, code_t code)
 {
     unsigned short word1 = code & 0xffff;
     assert(word1 == code);
@@ -5020,11 +4958,11 @@ inline unsigned insEncodeBitFieldImm(int imm)
  *  Emit a Thumb-2 instruction (two 16-bit integers as code)
  */
 
-/*static*/ unsigned emitter::emitOutput_Thumb2Instr(BYTE* dst, ssize_t code)
+/*static*/ unsigned emitter::emitOutput_Thumb2Instr(BYTE* dst, code_t code)
 {
     unsigned short word1 = (code >> 16) & 0xffff;
     unsigned short word2 = (code)&0xffff;
-    assert(((word1 << 16) | word2) == code);
+    assert((code_t)((word1 << 16) | word2) == code);
 
 #ifdef DEBUG
     unsigned short top5bits = (word1 & 0xf800) >> 11;
@@ -5053,7 +4991,7 @@ BYTE* emitter::emitOutputLJ(insGroup* ig, BYTE* dst, instrDesc* i)
 
     instrDescJmp* id  = (instrDescJmp*)i;
     instruction   ins = id->idIns();
-    ssize_t       code;
+    code_t        code;
 
     bool loadLabel = false;
     bool isJump    = false;
@@ -5428,7 +5366,7 @@ BYTE* emitter::emitOutputLJ(insGroup* ig, BYTE* dst, instrDesc* i)
 
 BYTE* emitter::emitOutputShortBranch(BYTE* dst, instruction ins, insFormat fmt, ssize_t distVal, instrDescJmp* id)
 {
-    size_t code;
+    code_t code;
 
     code = emitInsCode(ins, fmt);
 
@@ -5486,10 +5424,10 @@ BYTE* emitter::emitOutputShortBranch(BYTE* dst, instruction ins, insFormat fmt, 
  *  Output an IT instruction.
  */
 
-BYTE* emitter::emitOutputIT(BYTE* dst, instruction ins, insFormat fmt, ssize_t condcode)
+BYTE* emitter::emitOutputIT(BYTE* dst, instruction ins, insFormat fmt, code_t condcode)
 {
-    ssize_t imm0;
-    size_t  code, mask, bit;
+    code_t imm0;
+    code_t code, mask, bit;
 
     code = emitInsCode(ins, fmt);
     code |= (condcode << 4);        // encode firstcond
@@ -5523,7 +5461,7 @@ BYTE* emitter::emitOutputIT(BYTE* dst, instruction ins, insFormat fmt, ssize_t c
 
 BYTE* emitter::emitOutputNOP(BYTE* dst, instruction ins, insFormat fmt)
 {
-    size_t code = emitInsCode(ins, fmt);
+    code_t code = emitInsCode(ins, fmt);
 
     dst += emitOutput_Thumb2Instr(dst, code);
 
@@ -5543,13 +5481,12 @@ size_t emitter::emitOutputInstr(insGroup* ig, instrDesc* id, BYTE** dp)
 {
     BYTE*         dst           = *dp;
     BYTE*         odst          = dst;
-    size_t        code          = 0;
+    code_t        code          = 0;
     size_t        sz            = 0;
     instruction   ins           = id->idIns();
     insFormat     fmt           = id->idInsFmt();
     emitAttr      size          = id->idOpSize();
     unsigned char callInstrSize = 0;
-    ssize_t       condcode;
 
 #ifdef DEBUG
     bool dspOffs = emitComp->opts.dspGCtbls || !emitComp->opts.disDiffable;
@@ -5564,9 +5501,6 @@ size_t emitter::emitOutputInstr(insGroup* ig, instrDesc* id, BYTE** dp)
     switch (fmt)
     {
         int       imm;
-        int       imm0;
-        int       mask;
-        int       bit;
         BYTE*     addr;
         regMaskTP gcrefRegs;
         regMaskTP byrefRegs;
@@ -5579,11 +5513,13 @@ size_t emitter::emitOutputInstr(insGroup* ig, instrDesc* id, BYTE** dp)
 
 #ifdef FEATURE_ITINSTRUCTION
         case IF_T1_B: // T1_B    ........cccc....                                           cond
+        {
             assert(id->idGCref() == GCT_NONE);
-            condcode = emitGetInsSC(id);
-            dst      = emitOutputIT(dst, ins, fmt, condcode);
-            sz       = SMALL_IDSC_SIZE;
-            break;
+            ssize_t condcode = emitGetInsSC(id);
+            dst              = emitOutputIT(dst, ins, fmt, condcode);
+            sz               = SMALL_IDSC_SIZE;
+        }
+        break;
 #endif // FEATURE_ITINSTRUCTION
 
         case IF_T1_C: // T1_C    .....iiiiinnnddd                       R1  R2              imm5
@@ -7558,8 +7494,6 @@ void emitter::emitDispFrameRef(int varx, int disp, int offs, bool asmfm)
 
 #endif // DEBUG
 
-#ifndef LEGACY_BACKEND
-
 void emitter::emitInsLoadStoreOp(instruction ins, emitAttr attr, regNumber dataReg, GenTreeIndir* indir)
 {
     // Handle unaligned floating point loads/stores
@@ -7891,11 +7825,7 @@ regNumber emitter::emitInsTernary(instruction ins, emitAttr attr, GenTree* dst, 
             jumpKind                = isUnsignedOverflow ? EJ_lo : EJ_vs;
             if (jumpKind == EJ_lo)
             {
-                if ((dst->OperGet() != GT_SUB) &&
-#ifdef LEGACY_BACKEND
-                    (dst->OperGet() != GT_ASG_SUB) &&
-#endif
-                    (dst->OperGet() != GT_SUB_HI))
+                if ((dst->OperGet() != GT_SUB) && (dst->OperGet() != GT_SUB_HI))
                 {
                     jumpKind = EJ_hs;
                 }
@@ -7909,5 +7839,4 @@ regNumber emitter::emitInsTernary(instruction ins, emitAttr attr, GenTree* dst, 
     return dst->gtRegNum;
 }
 
-#endif // !LEGACY_BACKEND
 #endif // defined(_TARGET_ARM_)

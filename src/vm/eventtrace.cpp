@@ -4949,10 +4949,10 @@ VOID ETW::InfoLog::RuntimeInformation(INT32 type)
             Sku = ETW::InfoLog::InfoStructs::CoreCLR;
         
             //version info for clr.dll
-            USHORT vmMajorVersion = VER_MAJORVERSION;
-            USHORT vmMinorVersion = VER_MINORVERSION;
-            USHORT vmBuildVersion = VER_PRODUCTBUILD;
-            USHORT vmQfeVersion = VER_PRODUCTBUILD_QFE;
+            USHORT vmMajorVersion = CLR_MAJOR_VERSION;
+            USHORT vmMinorVersion = CLR_MINOR_VERSION;
+            USHORT vmBuildVersion = CLR_BUILD_VERSION;
+            USHORT vmQfeVersion = CLR_BUILD_VERSION_QFE;
 
             //version info for mscorlib.dll
             USHORT bclMajorVersion = VER_ASSEMBLYMAJORVERSION;
@@ -5361,7 +5361,7 @@ VOID ETW::MethodLog::StubInitialized(ULONGLONG ullHelperStartAddress, LPCWSTR pH
 /**********************************************************/
 /* This is called by the runtime when helpers with stubs are initialized */
 /**********************************************************/
-VOID ETW::MethodLog::StubsInitialized(PVOID *pHelperStartAddresss, PVOID *pHelperNames, LONG lNoOfHelpers)
+VOID ETW::MethodLog::StubsInitialized(PVOID *pHelperStartAddress, PVOID *pHelperNames, LONG lNoOfHelpers)
 {
     WRAPPER_NO_CONTRACT;
 
@@ -5371,9 +5371,9 @@ VOID ETW::MethodLog::StubsInitialized(PVOID *pHelperStartAddresss, PVOID *pHelpe
     {
         for(int i=0; i<lNoOfHelpers; i++)
         {
-            if(pHelperStartAddresss[i])
+            if(pHelperStartAddress[i])
             {
-                StubInitialized((ULONGLONG)pHelperStartAddresss[i], (LPCWSTR)pHelperNames[i]);
+                StubInitialized((ULONGLONG)pHelperStartAddress[i], (LPCWSTR)pHelperNames[i]);
             }
         }
     }

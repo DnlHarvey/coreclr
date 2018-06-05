@@ -690,7 +690,7 @@ CorUnix::InternalOpenMutex(
     _ASSERTE(NULL != lpName);
     _ASSERTE(NULL != phMutex);
 
-    ENTRY("InternalOpenMutex(pthr=%p, dwDesiredAcces=%d, bInheritHandle=%d, "
+    ENTRY("InternalOpenMutex(pthr=%p, dwDesiredAccess=%d, bInheritHandle=%d, "
         "lpName=%p, phMutex=%p)\n",
         pthr,
         dwDesiredAccess,
@@ -1159,6 +1159,7 @@ SharedMemoryProcessDataHeader *NamedMutexProcessData::CreateOrOpen(
     {
         // If the shared memory file was created, the creation/deletion file lock would have been acquired so that we can
         // initialize the shared data
+        _ASSERTE(SharedMemoryManager::IsCreationDeletionFileLockAcquired());
         autoCleanup.m_acquiredCreationDeletionFileLock = true;
     }
     if (processDataHeader == nullptr)

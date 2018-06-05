@@ -254,7 +254,6 @@ BOOL ReadyToRunInfo::GetEnclosingToken(IMDInternalImport * pImport, mdToken mdTy
     }
     CONTRACTL_END;
 
-    mdToken mdEncloser;
     switch (TypeFromToken(mdType))
     {
     case mdtTypeDef:
@@ -544,7 +543,8 @@ PTR_ReadyToRunInfo ReadyToRunInfo::Initialize(Module * pModule, AllocMemTracker 
 }
 
 ReadyToRunInfo::ReadyToRunInfo(Module * pModule, PEImageLayout * pLayout, READYTORUN_HEADER * pHeader, AllocMemTracker *pamTracker)
-    : m_pModule(pModule), m_pLayout(pLayout), m_pHeader(pHeader), m_Crst(CrstLeafLock), m_pPersistentInlineTrackingMap(NULL)
+    : m_pModule(pModule), m_pLayout(pLayout), m_pHeader(pHeader), m_Crst(CrstReadyToRunEntryPointToMethodDescMap),
+    m_pPersistentInlineTrackingMap(NULL)
 {
     STANDARD_VM_CONTRACT;
 
@@ -888,7 +888,7 @@ DWORD ReadyToRunInfo::GetFieldBaseOffset(MethodTable * pMT)
 
     dwCumulativeInstanceFieldPos = (DWORD)ALIGN_UP(dwCumulativeInstanceFieldPos, dwAlignment);
 
-    return (DWORD)sizeof(Object) + dwCumulativeInstanceFieldPos - dwOffsetBias;
+    return OBJECT_SIZE + dwCumulativeInstanceFieldPos - dwOffsetBias;
 }
 
 BOOL ReadyToRunInfo::IsImageVersionAtLeast(int majorVersion, int minorVersion)

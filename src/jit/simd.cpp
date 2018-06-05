@@ -30,8 +30,6 @@
 #pragma hdrstop
 #endif
 
-#ifndef LEGACY_BACKEND // This file is ONLY used for the RyuJIT backend that uses the linear scan register allocator.
-
 #ifdef FEATURE_SIMD
 
 // Intrinsic Id to intrinsic info map
@@ -707,9 +705,13 @@ var_types Compiler::getBaseTypeAndSizeOfSIMDType(CORINFO_CLASS_HANDLE typeHnd, u
             }
         }
 
-        if (simdBaseType != TYP_UNKNOWN && sizeBytes != nullptr)
+        if (sizeBytes != nullptr)
         {
             *sizeBytes = size;
+        }
+
+        if (simdBaseType != TYP_UNKNOWN)
+        {
             setUsesSIMDTypes(true);
         }
     }
@@ -2509,7 +2511,7 @@ GenTree* Compiler::impSIMDIntrinsic(OPCODE                opcode,
                 else
                 {
                     assert(baseType == TYP_UBYTE || baseType == TYP_USHORT);
-                    t1 = gtNewCastNode(TYP_INT, op2, TYP_INT);
+                    t1 = gtNewCastNode(TYP_INT, op2, false, TYP_INT);
                 }
 
                 assert(t1 != nullptr);
@@ -3112,5 +3114,3 @@ GenTree* Compiler::impSIMDIntrinsic(OPCODE                opcode,
 }
 
 #endif // FEATURE_SIMD
-
-#endif // !LEGACY_BACKEND

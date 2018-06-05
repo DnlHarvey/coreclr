@@ -36,7 +36,6 @@
 #ifdef PROFILING_SUPPORTED
 #include "proftoeeinterfaceimpl.h"
 #endif
-#include "tls.h"
 #include "ecall.h"
 #include "generics.h"
 #include "typestring.h"
@@ -2945,7 +2944,7 @@ OBJECTHANDLE ConstructStringLiteral(CORINFO_MODULE_HANDLE scopeHnd, mdToken meta
     //      b) The ngen image isn't complete (it's missing classes), therefore we're jitting methods.
     //
     //  If we went ahead and called ResolveStringRef directly, we would be breaking the per module
-    //  interning we're guaranteeing, so we will have to detect the case and handle it appropiately.
+    //  interning we're guaranteeing, so we will have to detect the case and handle it appropriately.
 #ifdef FEATURE_PREJIT
     if (module->HasNativeImage() && module->IsNoStringInterning())
     {

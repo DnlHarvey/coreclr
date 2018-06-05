@@ -12,45 +12,52 @@
 
   <PropertyGroup>
     <!-- Central place to set the versions of all nuget packages produced in the repo -->
-    <PackageVersion Condition="'$(PackageVersion)' == ''">2.1.0</PackageVersion>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">2.2.0</PackageVersion>
 
     <!-- Set the boolean below to true to generate packages with stabilized versions -->
     <StabilizePackageVersion Condition="'$(StabilizePackageVersion)' == ''">false</StabilizePackageVersion>
     <StableVersion Condition="'$(StabilizePackageVersion)' == 'true' and '$(StableVersion)' == ''">$(PackageVersion)</StableVersion>
 
-    <PreReleaseLabel>preview2</PreReleaseLabel>
+    <PreReleaseLabel>preview1</PreReleaseLabel>
   </PropertyGroup>
 
   <!-- Source of truth for dependency tooling: the commit hash of the dotnet/versions master branch as of the last auto-upgrade. -->
   <PropertyGroup>
-    <CoreFxCurrentRef>7657a6f8cd7c1faa71504e68a154bca8c0c4b3c3</CoreFxCurrentRef>
-    <CoreClrCurrentRef>0bb44c6bf07f84a9a4bf65b385008819c25da93c</CoreClrCurrentRef>
-    <BuildToolsCurrentRef>7657a6f8cd7c1faa71504e68a154bca8c0c4b3c3</BuildToolsCurrentRef>
-    <PgoDataCurrentRef>52ef5425807dea54485a3e3b632887f6833d9069</PgoDataCurrentRef>
+    <CoreFxCurrentRef>cf1dffdd938ec543cdfcdebedddc67d7eb1eb3a5</CoreFxCurrentRef>
+    <CoreClrCurrentRef>cf1dffdd938ec543cdfcdebedddc67d7eb1eb3a5</CoreClrCurrentRef>
+    <BuildToolsCurrentRef>8f0c0873424c5a15f04a0d36f68aae89eba38093</BuildToolsCurrentRef>
+    <PgoDataCurrentRef>cf1dffdd938ec543cdfcdebedddc67d7eb1eb3a5</PgoDataCurrentRef>
   </PropertyGroup>
 
   <!-- Tests/infrastructure dependency versions. -->
   <PropertyGroup>
-    <MicrosoftPrivateCoreFxNETCoreAppPackageVersion>4.5.0-preview2-26216-03</MicrosoftPrivateCoreFxNETCoreAppPackageVersion>
-    <MicrosoftNETCorePlatformsPackageVersion>2.1.0-preview2-26216-03</MicrosoftNETCorePlatformsPackageVersion>
-    <PgoDataPackageVersion>99.99.99-master-20180219-0044</PgoDataPackageVersion>
-    <MicrosoftNETCoreRuntimeCoreCLRPackageVersion>2.1.0-preview2-26220-01</MicrosoftNETCoreRuntimeCoreCLRPackageVersion>
+    <MicrosoftPrivateCoreFxNETCoreAppPackageVersion>4.6.0-preview1-26529-04</MicrosoftPrivateCoreFxNETCoreAppPackageVersion>
+    <MicrosoftNETCorePlatformsPackageVersion>2.2.0-preview1-26529-04</MicrosoftNETCorePlatformsPackageVersion>
+    <PgoDataPackageVersion>99.99.99-master-20180529-0053</PgoDataPackageVersion>
+    <MicrosoftNETCoreRuntimeCoreCLRPackageVersion>2.2.0-preview1-26529-04</MicrosoftNETCoreRuntimeCoreCLRPackageVersion>
     <XunitPackageVersion>2.2.0-beta2-build3300</XunitPackageVersion>
     <XunitConsoleNetcorePackageVersion>1.0.2-prerelease-00177</XunitConsoleNetcorePackageVersion>
     <XunitPerformanceApiPackageVersion>1.0.0-beta-build0015</XunitPerformanceApiPackageVersion>
     <MicrosoftDiagnosticsTracingTraceEventPackageVersion>2.0.4</MicrosoftDiagnosticsTracingTraceEventPackageVersion>
+    <CommandLineParserVersion>2.2.0</CommandLineParserVersion>
     <VCRuntimeVersion>1.2.0</VCRuntimeVersion>
     
     <!-- Scenario tests install this version of Microsoft.NetCore.App, then patch coreclr binaries via xcopy. At the moment it is
          updated manually whenever breaking changes require it to move forward, but it would be nice if we could update it automatically
          as we do with many of the package versions above -->
-    <BaselineMicrosoftNetCoreAppPackageVersion>2.1.0-preview2-26131-06</BaselineMicrosoftNetCoreAppPackageVersion>
+    <BaselineMicrosoftNetCoreAppPackageVersion>2.1.0-preview3-26416-01</BaselineMicrosoftNetCoreAppPackageVersion>
   </PropertyGroup>
 
   <!-- Package versions used as toolsets -->
   <PropertyGroup>
     <FeedTasksPackage>Microsoft.DotNet.Build.Tasks.Feed</FeedTasksPackage>
-    <FeedTasksPackageVersion>2.1.0-preview2-02516-02</FeedTasksPackageVersion>
+    <FeedTasksPackageVersion>2.2.0-preview1-02829-01</FeedTasksPackageVersion>
+  </PropertyGroup>
+
+  <!-- Publish symbol build task package -->
+  <PropertyGroup>
+    <PublishSymbolsPackage>Microsoft.SymbolUploader.Build.Task</PublishSymbolsPackage>
+    <PublishSymbolsPackageVersion>1.0.0-beta-62806-01</PublishSymbolsPackageVersion>
   </PropertyGroup>
 
   <!-- Package dependency verification/auto-upgrade configuration. -->
@@ -60,10 +67,10 @@
     <CurrentRefXmlPath>$(MSBuildThisFileFullPath)</CurrentRefXmlPath>
   </PropertyGroup>
 
-  <!-- ILLinik.Tasks package version -->
+  <!-- ILLink.Tasks package version -->
   <PropertyGroup>
     <ILLinkTasksPackage>ILLink.Tasks</ILLinkTasksPackage>
-    <ILLinkTasksPackageVersion>0.1.4-preview-1317495</ILLinkTasksPackageVersion>
+    <ILLinkTasksPackageVersion>0.1.5-preview-1461378</ILLinkTasksPackageVersion>
   </PropertyGroup>
 
   <ItemGroup>

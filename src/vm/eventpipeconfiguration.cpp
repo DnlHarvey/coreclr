@@ -19,6 +19,7 @@ EventPipeConfiguration::EventPipeConfiguration()
 
     m_enabled = false;
     m_rundownEnabled = false;
+    m_pRundownThread = NULL;
     m_pConfigProvider = NULL;
     m_pSession = NULL;
     m_pProviderList = new SList<SListElem<EventPipeProvider*>>();
@@ -85,7 +86,7 @@ void EventPipeConfiguration::Initialize()
     CONTRACTL
     {
         THROWS;
-        GC_NOTRIGGER;
+        GC_TRIGGERS;
         MODE_ANY;
     }
     CONTRACTL_END;
@@ -107,7 +108,7 @@ EventPipeProvider* EventPipeConfiguration::CreateProvider(const SString &provide
     CONTRACTL
     {
         THROWS;
-        GC_NOTRIGGER;
+        GC_TRIGGERS;
         MODE_ANY;
     }
     CONTRACTL_END;
@@ -150,7 +151,7 @@ bool EventPipeConfiguration::RegisterProvider(EventPipeProvider &provider)
     CONTRACTL
     {
         THROWS;
-        GC_NOTRIGGER;
+        GC_TRIGGERS;
         MODE_ANY;
     }
     CONTRACTL_END;
@@ -345,7 +346,7 @@ void EventPipeConfiguration::Enable(EventPipeSession *pSession)
     CONTRACTL
     {
         THROWS;
-        GC_NOTRIGGER;
+        GC_TRIGGERS;
         MODE_ANY;
         PRECONDITION(pSession != NULL);
         // Lock must be held by EventPipe::Enable.
@@ -384,7 +385,7 @@ void EventPipeConfiguration::Disable(EventPipeSession *pSession)
     CONTRACTL
     {
         THROWS;
-        GC_NOTRIGGER;
+        GC_TRIGGERS;
         MODE_ANY;
         // TODO: Multiple session support will require that the session be specified.
         PRECONDITION(pSession != NULL);
@@ -409,6 +410,7 @@ void EventPipeConfiguration::Disable(EventPipeSession *pSession)
 
     m_enabled = false;
     m_rundownEnabled = false;
+    m_pRundownThread = NULL;
     m_pSession = NULL;
 }
 
@@ -429,7 +431,7 @@ void EventPipeConfiguration::EnableRundown(EventPipeSession *pSession)
     CONTRACTL
     {
         THROWS;
-        GC_NOTRIGGER;
+        GC_TRIGGERS;
         MODE_ANY;
         PRECONDITION(pSession != NULL);
         // Lock must be held by EventPipe::Disable.
@@ -440,8 +442,10 @@ void EventPipeConfiguration::EnableRundown(EventPipeSession *pSession)
     // Build the rundown configuration.
     _ASSERTE(m_pSession == NULL);
 
-    // Enable rundown.
+    // Enable rundown and keep track of the rundown thread.
     // TODO: Move this into EventPipeSession once Enable takes an EventPipeSession object.
+    m_pRundownThread = GetThread();
+    _ASSERTE(m_pRundownThread != NULL);
     m_rundownEnabled = true;
 
     // Enable tracing.

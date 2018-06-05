@@ -546,7 +546,7 @@ struct StubPrecode {
         CONTRACTL_END;
 
         EnsureWritableExecutablePages(&m_rel32);
-        return rel32SetInterlocked(&m_rel32, GetPreStubEntryPoint(), (MethodDesc*)GetMethodDesc());
+        rel32SetInterlocked(&m_rel32, GetPreStubEntryPoint(), (MethodDesc*)GetMethodDesc());
     }
 
     BOOL SetTargetInterlocked(TADDR target, TADDR expected)
@@ -720,6 +720,7 @@ struct FixupPrecode {
 #endif // HAS_FIXUP_PRECODE_CHUNKS
 
 #ifdef FIXUP_PRECODE_PREALLOCATE_DYNAMIC_METHOD_JUMP_STUBS
+    PCODE GetDynamicMethodPrecodeFixupJumpStub();
     PCODE GetDynamicMethodEntryJumpStub();
 #endif // FIXUP_PRECODE_PREALLOCATE_DYNAMIC_METHOD_JUMP_STUBS
 

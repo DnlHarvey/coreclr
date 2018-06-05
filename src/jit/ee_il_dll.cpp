@@ -382,7 +382,7 @@ unsigned CILJit::getMaxIntrinsicSIMDVectorLength(CORJIT_FLAGS cpuCompileFlags)
     jitFlags.SetFromFlags(cpuCompileFlags);
 
 #ifdef FEATURE_SIMD
-#if defined(_TARGET_XARCH_) && !defined(LEGACY_BACKEND)
+#if defined(_TARGET_XARCH_)
     if (!jitFlags.IsSet(JitFlags::JIT_FLAG_PREJIT) && jitFlags.IsSet(JitFlags::JIT_FLAG_FEATURE_SIMD) &&
         jitFlags.IsSet(JitFlags::JIT_FLAG_USE_AVX2))
     {
@@ -399,7 +399,7 @@ unsigned CILJit::getMaxIntrinsicSIMDVectorLength(CORJIT_FLAGS cpuCompileFlags)
             return 32;
         }
     }
-#endif // !(defined(_TARGET_XARCH_) && !defined(LEGACY_BACKEND))
+#endif // defined(_TARGET_XARCH_)
     if (GetJitTls() != nullptr && JitTls::GetCompiler() != nullptr)
     {
         JITDUMP("getMaxIntrinsicSIMDVectorLength: returning 16\n");
@@ -431,7 +431,7 @@ unsigned Compiler::eeGetArgSize(CORINFO_ARG_LIST_HANDLE list, CORINFO_SIG_INFO* 
     // to accommodate irregular sized structs, they are passed byref
     CLANG_FORMAT_COMMENT_ANCHOR;
 
-#ifdef FEATURE_UNIX_AMD64_STRUCT_PASSING
+#ifdef UNIX_AMD64_ABI
     CORINFO_CLASS_HANDLE argClass;
     CorInfoType          argTypeJit = strip(info.compCompHnd->getArgType(sig, list, &argClass));
     var_types            argType    = JITtype2varType(argTypeJit);
@@ -440,7 +440,7 @@ unsigned Compiler::eeGetArgSize(CORINFO_ARG_LIST_HANDLE list, CORINFO_SIG_INFO* 
         unsigned structSize = info.compCompHnd->getClassSize(argClass);
         return structSize; // TODO: roundUp() needed here?
     }
-#endif // FEATURE_UNIX_AMD64_STRUCT_PASSING
+#endif // UNIX_AMD64_ABI
     return TARGET_POINTER_SIZE;
 
 #else // !_TARGET_AMD64_
@@ -798,7 +798,7 @@ void Compiler::eeDispVar(ICorDebugInfo::NativeVarInfo* var)
     printf("%3d(%10s) : From %08Xh to %08Xh, in ", var->varNumber,
            (VarNameToStr(name) == nullptr) ? "UNKNOWN" : VarNameToStr(name), var->startOffset, var->endOffset);
 
-    switch (var->loc.vlType)
+    switch ((Compiler::siVarLocType)var->loc.vlType)
     {
         case VLT_REG:
         case VLT_REG_BYREF:
@@ -1158,7 +1158,7 @@ int Compiler::eeGetJitDataOffs(CORINFO_FIELD_HANDLE field)
  *                      ICorStaticInfo wrapper functions
  */
 
-#if defined(FEATURE_UNIX_AMD64_STRUCT_PASSING)
+#if defined(UNIX_AMD64_ABI)
 
 #ifdef DEBUG
 void Compiler::dumpSystemVClassificationType(SystemVClassificationType ct)
@@ -1224,7 +1224,7 @@ void Compiler::eeGetSystemVAmd64PassStructInRegisterDescriptor(
 #endif // DEBUG
 }
 
-#endif // FEATURE_UNIX_AMD64_STRUCT_PASSING
+#endif // UNIX_AMD64_ABI
 
 bool Compiler::eeTryResolveToken(CORINFO_RESOLVED_TOKEN* resolvedToken)
 {

@@ -183,21 +183,21 @@ function mount_emulator {
     fi
 
     if [ ! -d "$__ARMEmulRootfs" ]; then
-		sudo mkdir "$__ARMEmulRootfs"
-	fi
+        sudo mkdir "$__ARMEmulRootfs"
+    fi
 
-	if [ ! -f "$__ARMEmulRootfs/arm-emulator-rootfs.tar" ]; then
-	    if mountpoint -q -- "$__ARMRootfsMountPath"; then
-	        sudo umount -l $__ARMRootfsMountPath
+    if [ ! -f "$__ARMEmulRootfs/arm-emulator-rootfs.tar" ]; then
+        if mountpoint -q -- "$__ARMRootfsMountPath"; then
+            sudo umount -l $__ARMRootfsMountPath
         fi
-		mount_with_checking "" "$__ARMEmulPath/platform/rootfs-t30.ext4" "$__ARMRootfsMountPath"
-		
-		cd $__ARMRootfsMountPath
-		sudo tar -cf "$__ARMEmulRootfs/arm-emulator-rootfs.tar" *
-		cd -
-	fi
+        mount_with_checking "" "$__ARMEmulPath/platform/rootfs-t30.ext4" "$__ARMRootfsMountPath"
+        
+        cd $__ARMRootfsMountPath
+        sudo tar -cf "$__ARMEmulRootfs/arm-emulator-rootfs.tar" *
+        cd -
+    fi
 
-	sudo tar -xf "$__ARMEmulRootfs/arm-emulator-rootfs.tar" -C "$__ARMEmulRootfs"
+    sudo tar -xf "$__ARMEmulRootfs/arm-emulator-rootfs.tar" -C "$__ARMEmulRootfs"
 
     mount_with_checking "-t proc" "/proc"    "$__ARMEmulRootfs/proc"
     mount_with_checking "-o bind" "/dev/"    "$__ARMEmulRootfs/dev"
@@ -209,9 +209,9 @@ function mount_emulator {
     fi
     mount_with_checking "-o bind" "/mnt"     "$__ARMEmulRootfs/bindings/tmp"
 
-	if [ ! -d "$__ARMEmulRootfs/$__TempFolder" ]; then
+    if [ ! -d "$__ARMEmulRootfs/$__TempFolder" ]; then
         sudo mkdir "$__ARMEmulRootfs/$__TempFolder"
-	fi
+    fi
 }
 
 #Cross builds coreclr
@@ -227,7 +227,7 @@ function cross_build_coreclr {
     fi
 
     #Cross building for emulator rootfs
-    ROOTFS_DIR="$__ARMEmulRootfs" CPLUS_INCLUDE_PATH=$LINUX_ARM_INCPATH CXXFLAGS=$LINUX_ARM_CXXFLAGS ./build.sh $__buildArch cross $__verboseFlag $__skipMscorlib clang3.5 $__buildConfig -rebuild
+    ROOTFS_DIR="$__ARMEmulRootfs" CPLUS_INCLUDE_PATH=$LINUX_ARM_INCPATH CXXFLAGS=$LINUX_ARM_CXXFLAGS ./build.sh $__buildArch cross $__verboseFlag $__skipMscorlib clang3.5 $__buildConfig
 
     #Reset the code to the upstream version
     (set +x; echo 'Rewinding HEAD to master code')
@@ -265,7 +265,7 @@ function cross_build_coreclr_with_docker {
         # For armel Tizen, we are going to construct RootFS on the fly.
         case $__linuxCodeName in
         tizen)
-            __dockerImage=" hqueue/dotnet-buildtools-prereqs:ubuntu-14.04-cross-0cd4667-20172211042239-tizen-rootfs-20170925"
+            __dockerImage=" gbalykov/dotnet-buildtools-prereqs:ubuntu-16.04-cross-e435274-20180426002255-tizen-rootfs-4.0m2"
             __skipRootFS=1
             __dockerEnvironmentVariables+=" -e ROOTFS_DIR=/crossrootfs/armel.tizen.build"
             __runtimeOS="tizen.4.0.0"
@@ -296,7 +296,7 @@ function cross_build_coreclr_with_docker {
 
     # Cross building coreclr with rootfs in Docker
     (set +x; echo "Start cross build coreclr for $__buildArch $__linuxCodeName")
-    __buildCmd="./build.sh $__buildArch cross $__verboseFlag $__skipMscorlib $__buildConfig $__extraArgs -rebuild"
+    __buildCmd="./build.sh $__buildArch cross $__verboseFlag $__skipMscorlib $__buildConfig $__extraArgs"
     $__dockerCmd $__buildCmd
     sudo chown -R $(id -u -n) ./bin
 }
@@ -354,7 +354,7 @@ function run_tests {
     sudo chroot $__ARMEmulRootfs /bin/bash -x <<EOF
         cd "$__ARMEmulCoreclr"
         ./tests/runtest.sh --sequential\
-		           --testRootDir=$__testRootDirBase \
+                           --testRootDir=$__testRootDirBase \
                            --mscorlibDir=$__mscorlibDirBase \
                            --coreFxNativeBinDir=$__coreFxNativeBinDirBase \
                            --coreFxBinDir="$__coreFxBinDirBase" \
@@ -388,7 +388,7 @@ function run_tests_using_docker {
     elif [ "$__buildArch" == "armel" ]; then
         case $__linuxCodeName in
         tizen)
-            __dockerImage=" hqueue/dotnet-buildtools-prereqs:ubuntu-14.04-cross-0cd4667-20172211042239-tizen-rootfs-20170925"
+            __dockerImage=" gbalykov/dotnet-buildtools-prereqs:ubuntu-16.04-cross-e435274-20180426002255-tizen-rootfs-4.0m2"
             __skipRootFS=1
             __dockerEnvironmentVariables=" -e ROOTFS_DIR=/crossrootfs/armel.tizen.test"
         ;;
@@ -509,7 +509,7 @@ if [ "$__ciMode" == "emulator" ]; then
     __skipTests=1
 fi
 
-__coreFxBinDir="./bin/CoreFxBinDir" # TODO-clenup: Just for testing.... 
+__coreFxBinDir="./bin/CoreFxBinDir" # TODO-cleanup: Just for testing.... 
 #Check if the optional arguments are present in the case that testing is to be done
 if [ $__skipTests == 0 ]; then
     exit_if_empty "$__testRootDir" "Testing requested, but --testRootDir not provided" true

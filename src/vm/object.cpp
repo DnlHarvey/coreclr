@@ -590,7 +590,7 @@ void STDCALL CopyValueClassArgUnchecked(ArgDestination *argDest, void* src, Meth
     STATIC_CONTRACT_FORBID_FAULT;
     STATIC_CONTRACT_MODE_COOPERATIVE;
 
-#if defined(UNIX_AMD64_ABI) && defined(FEATURE_UNIX_AMD64_STRUCT_PASSING)
+#if defined(UNIX_AMD64_ABI)
 
     if (argDest->IsStructPassedInRegs())
     {
@@ -606,7 +606,7 @@ void STDCALL CopyValueClassArgUnchecked(ArgDestination *argDest, void* src, Meth
         return;
     }
 
-#endif // UNIX_AMD64_ABI && FEATURE_UNIX_AMD64_STRUCT_PASSING
+#endif // UNIX_AMD64_ABI
     // destOffset is only valid for Nullable<T> passed in registers
     _ASSERTE(destOffset == 0);
 
@@ -621,7 +621,7 @@ void InitValueClassArg(ArgDestination *argDest, MethodTable *pMT)
     STATIC_CONTRACT_FORBID_FAULT;
     STATIC_CONTRACT_MODE_COOPERATIVE;
 
-#if defined(UNIX_AMD64_ABI) && defined(FEATURE_UNIX_AMD64_STRUCT_PASSING)
+#if defined(UNIX_AMD64_ABI)
 
     if (argDest->IsStructPassedInRegs())
     {
@@ -1082,62 +1082,6 @@ STRINGREF* StringObject::InitEmptyStringRefPtr() {
     return EmptyStringRefPtr;
 }
 
-/*=============================StringInitCharHelper=============================
-**Action:
-**Returns:
-**Arguments:
-**Exceptions:
-**Note this
-==============================================================================*/
-STRINGREF __stdcall StringObject::StringInitCharHelper(LPCSTR pszSource, int length) {
-    CONTRACTL {
-        THROWS;
-        GC_TRIGGERS;
-        MODE_COOPERATIVE;
-    } CONTRACTL_END;
-
-    STRINGREF pString=NULL;
-    int dwSizeRequired=0;
-     _ASSERTE(length>=-1);                        
-     
-    if (!pszSource || length == 0) {
-        return StringObject::GetEmptyString();
-    }
-#ifndef FEATURE_PAL
-    else if ((size_t)pszSource < 64000) {
-        COMPlusThrow(kArgumentException, W("Arg_MustBeStringPtrNotAtom"));
-    }    
-#endif // FEATURE_PAL
-
-    // Make sure we can read from the pointer.
-    // This is better than try to read from the pointer and catch the access violation exceptions.
-    if( length == -1) {
-        length = (INT32)strlen(pszSource);
-    }
-   
-    if(length > 0)  {  
-        dwSizeRequired=WszMultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, pszSource, length, NULL, 0);
-    }
-
-    if (dwSizeRequired == 0) {
-        if (length == 0) {
-            return StringObject::GetEmptyString();
-        }
-        COMPlusThrow(kArgumentException, W("Arg_InvalidANSIString"));
-    }
-
-    pString = AllocateString(dwSizeRequired);        
-    dwSizeRequired = WszMultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, (LPCSTR)pszSource, length, pString->GetBuffer(), dwSizeRequired);
-    if (dwSizeRequired == 0) {
-        COMPlusThrow(kArgumentException, W("Arg_InvalidANSIString"));
-    }
-
-    _ASSERTE(dwSizeRequired != INT32_MAX && pString->GetBuffer()[dwSizeRequired]==0);
-
-    return pString;
-}
-
-
 // strAChars must be null-terminated, with an appropriate aLength
 // strBChars must be null-terminated, with an appropriate bLength OR bLength == -1
 // If bLength == -1, we stop on the first null character in strBChars
@@ -1203,168 +1147,6 @@ BOOL StringObject::CaseInsensitiveCompHelper(__in_ecount(aLength) WCHAR *strACha
     }
     
 }
-
-INT32 StringObject::FastCompareStringHelper(DWORD* strAChars, INT32 countA, DWORD* strBChars, INT32 countB)
-{
-    STATIC_CONTRACT_SO_TOLERANT;
-    
-    INT32 count    = (countA < countB) ? countA : countB;
-
-    PREFIX_ASSUME(count >= 0);    
-
-    ptrdiff_t diff = (char *)strAChars - (char *)strBChars;
-
-#if defined(_WIN64) || defined(ALIGN_ACCESS)
-    int alignmentA = ((SIZE_T)strAChars) & (sizeof(SIZE_T) - 1);
-    int alignmentB = ((SIZE_T)strBChars) & (sizeof(SIZE_T) - 1);
-#endif // _WIN64 || ALIGN_ACCESS
-
-#if defined(_WIN64)
-    if (alignmentA == alignmentB)
-    {
-        if ((alignmentA == 2 || alignmentA == 6) && (count >= 1))
-        {
-            LPWSTR ptr2 = (WCHAR *)strBChars;
-
-            if (( *((WCHAR*)((char *)ptr2 + diff)) - *ptr2) != 0)
-            {
-                return ((int)*((WCHAR*)((char *)ptr2 + diff)) - (int)*ptr2);
-            }
-            strBChars = (DWORD*)(++ptr2);
-            count -= 1;
-            alignmentA = (alignmentA == 2 ? 4 : 0);
-        }
-
-        if ((alignmentA == 4) && (count >= 2))
-        {
-            DWORD* ptr2 = (DWORD*)strBChars;
-
-            if (( *((DWORD*)((char *)ptr2 + diff)) - *ptr2) != 0)
-            {
-                LPWSTR chkptr1 = (WCHAR*)((char *)strBChars + diff);
-                LPWSTR chkptr2 = (WCHAR*)strBChars;
-
-                if (*chkptr1 != *chkptr2)
-                {
-                    return ((int)*chkptr1 - (int)*chkptr2);
-                }
-                return ((int)*(chkptr1+1) - (int)*(chkptr2+1));
-            }
-            strBChars = ++ptr2;
-            count -= 2;
-            alignmentA = 0;
-        }
-
-        if (alignmentA == 0)
-        {
-            while (count >= 4)
-            {
-                SIZE_T* ptr2 = (SIZE_T*)strBChars;
-
-                if (( *((SIZE_T*)((char *)ptr2 + diff)) - *ptr2) != 0)
-                {
-                    if (( *((DWORD*)((char *)ptr2 + diff)) - *(DWORD*)ptr2) != 0)
-                    {
-                        LPWSTR chkptr1 = (WCHAR*)((char *)strBChars + diff);
-                        LPWSTR chkptr2 = (WCHAR*)strBChars;
-
-                        if (*chkptr1 != *chkptr2)
-                        {
-                            return ((int)*chkptr1 - (int)*chkptr2);
-                        }
-                        return ((int)*(chkptr1+1) - (int)*(chkptr2+1));
-                    }
-                    else
-                    {
-                        LPWSTR chkptr1 = (WCHAR*)((DWORD*)((char *)strBChars + diff) + 1);
-                        LPWSTR chkptr2 = (WCHAR*)((DWORD*)strBChars + 1);
-
-                        if (*chkptr1 != *chkptr2)
-                        {
-                            return ((int)*chkptr1 - (int)*chkptr2);
-                        }
-                        return ((int)*(chkptr1+1) - (int)*(chkptr2+1));
-                    }
-                }
-                strBChars = (DWORD*)(++ptr2);
-                count -= 4;
-            }
-        }
-
-        LPWSTR ptr2 = (WCHAR*)strBChars;
-        while ((count -= 1) >= 0)
-        {
-            if (( *((WCHAR*)((char *)ptr2 + diff)) - *ptr2) != 0)
-            {
-                return ((int)*((WCHAR*)((char *)ptr2 + diff)) - (int)*ptr2);
-            }
-            ++ptr2;
-        }
-    }
-    else
-#endif // _WIN64
-#if defined(ALIGN_ACCESS)
-    if ( ( !IS_ALIGNED((size_t)strAChars, sizeof(DWORD)) || 
-           !IS_ALIGNED((size_t)strBChars, sizeof(DWORD)) )  && 
-         (abs(alignmentA - alignmentB) != 4) )
-    {
-        _ASSERTE(IS_ALIGNED((size_t)strAChars, sizeof(WCHAR)));
-        _ASSERTE(IS_ALIGNED((size_t)strBChars, sizeof(WCHAR)));
-        LPWSTR ptr2 = (WCHAR *)strBChars;
-
-        while ((count -= 1) >= 0)
-        {
-            if (( *((WCHAR*)((char *)ptr2 + diff)) - *ptr2) != 0)
-            {
-                return ((int)*((WCHAR*)((char *)ptr2 + diff)) - (int)*ptr2);
-            }
-            ++ptr2;
-        }
-    }
-    else
-#endif // ALIGN_ACCESS
-    {
-#if defined(_WIN64) || defined(ALIGN_ACCESS)
-        if (abs(alignmentA - alignmentB) == 4)
-        {
-            if ((alignmentA == 2) || (alignmentB == 2))
-            {
-                LPWSTR ptr2 = (WCHAR *)strBChars;
-
-                if (( *((WCHAR*)((char *)ptr2 + diff)) - *ptr2) != 0)
-                {
-                    return ((int)*((WCHAR*)((char *)ptr2 + diff)) - (int)*ptr2);
-                }
-                strBChars = (DWORD*)(++ptr2);
-                count -= 1;
-            }
-        }
-#endif // WIN64 || ALIGN_ACCESS
-
-        // Loop comparing a DWORD at a time.
-        while ((count -= 2) >= 0)
-        {
-            if ((*((DWORD* )((char *)strBChars + diff)) - *strBChars) != 0)
-            {
-                LPWSTR ptr1 = (WCHAR*)((char *)strBChars + diff);
-                LPWSTR ptr2 = (WCHAR*)strBChars;
-                if (*ptr1 != *ptr2) {
-                    return ((int)*ptr1 - (int)*ptr2);
-                }
-                return ((int)*(ptr1+1) - (int)*(ptr2+1));
-            }
-            ++strBChars;
-        }
-
-        int c;
-        if (count == -1)
-            if ((c = *((WCHAR *) ((char *)strBChars + diff)) - *((WCHAR *) strBChars)) != 0)
-                return c;
-    }
-
-    return countA - countB;
-}
-
 
 /*=============================InternalHasHighChars=============================
 **Action:  Checks if the string can be sorted quickly.  The requirements are that
@@ -1516,63 +1298,6 @@ BOOL StringObject::SetTrailByte(BYTE bTrailByte) {
 
     GetHeader()->GetSyncBlock()->SetCOMBstrTrailByte(MAKE_VB_TRAIL_BYTE(bTrailByte));
     return TRUE;
-}
-
-
-/*================================ReplaceBuffer=================================
-**This is a helper function designed to be used by N/Direct it replaces the entire
-**contents of the String with a new string created by some native method.  This 
-**will not be exposed through the StringBuilder class.
-==============================================================================*/
-void StringBufferObject::ReplaceBuffer(STRINGBUFFERREF *thisRef, __in_ecount(newLength) WCHAR *newBuffer, INT32 newLength) {
-    CONTRACTL {
-        THROWS;
-        GC_TRIGGERS;
-        MODE_COOPERATIVE;
-        PRECONDITION(CheckPointer(newBuffer));
-        PRECONDITION(newLength>=0);
-        PRECONDITION(CheckPointer(thisRef));
-        PRECONDITION(IsProtectedByGCFrame(thisRef));
-    } CONTRACTL_END;
-
-    if(newLength > (*thisRef)->GetMaxCapacity())
-    {
-        COMPlusThrowArgumentOutOfRange(W("capacity"), W("ArgumentOutOfRange_Capacity"));
-    }
-
-    CHARARRAYREF newCharArray = AllocateCharArray((*thisRef)->GetAllocationLength(newLength+1));
-    (*thisRef)->ReplaceBuffer(&newCharArray, newBuffer, newLength);
-}
-
-
-/*================================ReplaceBufferAnsi=================================
-**This is a helper function designed to be used by N/Direct it replaces the entire
-**contents of the String with a new string created by some native method.  This 
-**will not be exposed through the StringBuilder class.
-**
-**This version does Ansi->Unicode conversion along the way. Although
-**making it a member of COMStringBuffer exposes more stringbuffer internals
-**than necessary, it does avoid requiring a temporary buffer to hold
-**the Ansi->Unicode conversion.
-==============================================================================*/
-void StringBufferObject::ReplaceBufferAnsi(STRINGBUFFERREF *thisRef, __in_ecount(newCapacity) CHAR *newBuffer, INT32 newCapacity) {
-    CONTRACTL {
-        THROWS;
-        GC_TRIGGERS;
-        MODE_COOPERATIVE;
-        PRECONDITION(CheckPointer(newBuffer));
-        PRECONDITION(CheckPointer(thisRef));
-        PRECONDITION(IsProtectedByGCFrame(thisRef));
-        PRECONDITION(newCapacity>=0);
-    } CONTRACTL_END;
-
-    if(newCapacity > (*thisRef)->GetMaxCapacity())
-    {
-        COMPlusThrowArgumentOutOfRange(W("capacity"), W("ArgumentOutOfRange_Capacity"));
-    }
-
-    CHARARRAYREF newCharArray = AllocateCharArray((*thisRef)->GetAllocationLength(newCapacity+1));
-    (*thisRef)->ReplaceBufferWithAnsi(&newCharArray, newBuffer, newCapacity);
 }
 
 #ifdef USE_CHECKED_OBJECTREFS
@@ -1933,9 +1658,9 @@ void __fastcall ZeroMemoryInGCHeap(void* mem, size_t size)
         *memBytes++ = 0;
 
     // now write pointer sized pieces
-    // volatile ensures that this doesn't get optimized back into a memset call (see #12207)
+    // volatile ensures that this doesn't get optimized back into a memset call
     size_t nPtrs = (endBytes - memBytes) / sizeof(PTR_PTR_VOID);
-    volatile PTR_PTR_VOID memPtr = (PTR_PTR_VOID) memBytes;
+    PTR_VOID volatile * memPtr = (PTR_PTR_VOID) memBytes;
     for (size_t i = 0; i < nPtrs; i++)
         *memPtr++ = 0;
 
@@ -1964,55 +1689,6 @@ void StackTraceArray::Append(StackTraceElement const * begin, StackTraceElement 
     memcpyNoGCRefs(GetData() + Size(), begin, (end - begin) * sizeof(StackTraceElement));
     MemoryBarrier();  // prevent the newsize from being reordered with the array copy
     SetSize(newsize);
-
-#if defined(_DEBUG)
-    CheckState();
-#endif
-}
-
-void StackTraceArray::AppendSkipLast(StackTraceElement const * begin, StackTraceElement const * end)
-{
-    CONTRACTL
-    {
-        THROWS;
-        GC_TRIGGERS;
-        MODE_COOPERATIVE;
-        PRECONDITION(IsProtectedByGCFrame((OBJECTREF*)this));
-    }
-    CONTRACTL_END;
-
-    // to skip the last element, we need to replace it with the first element
-    // from m_pStackTrace and do it atomically if possible,
-    // otherwise we'll create a copy of the entire array, which is bad for performance,
-    // and so should not be on the main path
-    //
-
-    // ensure that only one thread can write to the array
-    EnsureThreadAffinity();
-
-    assert(Size() > 0);
-
-    StackTraceElement & last = GetData()[Size() - 1];
-    if (last.PartiallyEqual(*begin))
-    {
-        // fast path: atomic update
-        last.PartialAtomicUpdate(*begin);
-
-        // append the rest
-        if (end - begin > 1)
-            Append(begin + 1, end);
-    }
-    else
-    {
-        // slow path: create a copy and append
-        StackTraceArray copy;
-        GCPROTECT_BEGIN(copy);
-            copy.CopyFrom(*this);
-            copy.SetSize(copy.Size() - 1);
-            copy.Append(begin, end);
-            this->Swap(copy);
-        GCPROTECT_END();
-    }
 
 #if defined(_DEBUG)
     CheckState();
@@ -2374,7 +2050,7 @@ BOOL Nullable::UnBoxIntoArgNoGC(ArgDestination *argDest, OBJECTREF boxedVal, Met
     }
     CONTRACTL_END;
 
-#if defined(UNIX_AMD64_ABI) && defined(FEATURE_UNIX_AMD64_STRUCT_PASSING)
+#if defined(UNIX_AMD64_ABI)
     if (argDest->IsStructPassedInRegs())
     {
         // We should only get here if we are unboxing a T as a Nullable<T>
@@ -2412,7 +2088,7 @@ BOOL Nullable::UnBoxIntoArgNoGC(ArgDestination *argDest, OBJECTREF boxedVal, Met
         return TRUE;
     }
 
-#endif // UNIX_AMD64_ABI && FEATURE_UNIX_AMD64_STRUCT_PASSING
+#endif // UNIX_AMD64_ABI
 
     return UnBoxNoGC(argDest->GetDestinationAddress(), boxedVal, destMT);
 }

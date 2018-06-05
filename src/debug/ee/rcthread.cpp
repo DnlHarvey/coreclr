@@ -286,8 +286,8 @@ HRESULT DebuggerIPCControlBlock::Init(
     memset( this, 0, sizeof( DebuggerIPCControlBlock) );
 
     // Setup version checking info.
-    m_verMajor = VER_PRODUCTBUILD;
-    m_verMinor = VER_PRODUCTBUILD_QFE;
+    m_verMajor = CLR_BUILD_VERSION;
+    m_verMinor = CLR_BUILD_VERSION_QFE;
 
 #ifdef _DEBUG
     m_checkedBuild = true;
@@ -733,6 +733,7 @@ HRESULT DebuggerRCThread::SetupRuntimeOffsets(DebuggerIPCControlBlock * pDebugge
     pDebuggerRuntimeOffsets->m_signalHijackCompleteBPAddr = (void*) SignalHijackCompleteFlare;
     pDebuggerRuntimeOffsets->m_excepNotForRuntimeBPAddr = (void*) ExceptionNotForRuntimeFlare;
     pDebuggerRuntimeOffsets->m_notifyRSOfSyncCompleteBPAddr = (void*) NotifyRightSideOfSyncCompleteFlare;
+    pDebuggerRuntimeOffsets->m_debuggerWordTLSIndex = g_debuggerWordTLSIndex;
 
 #if !defined(FEATURE_CORESYSTEM)
     // Grab the address of RaiseException in kernel32 because we have to play some games with exceptions
@@ -767,7 +768,6 @@ HRESULT DebuggerRCThread::SetupRuntimeOffsets(DebuggerIPCControlBlock * pDebugge
                                       &pDebuggerRuntimeOffsets->m_EEThreadStateNCOffset,
                                       &pDebuggerRuntimeOffsets->m_EEThreadPGCDisabledOffset,
                                       &pDebuggerRuntimeOffsets->m_EEThreadPGCDisabledValue,
-                                      &pDebuggerRuntimeOffsets->m_EEThreadDebuggerWordOffset,
                                       &pDebuggerRuntimeOffsets->m_EEThreadFrameOffset,
                                       &pDebuggerRuntimeOffsets->m_EEThreadMaxNeededSize,
                                       &pDebuggerRuntimeOffsets->m_EEThreadSteppingStateMask,
@@ -1173,7 +1173,7 @@ void DebuggerRCThread::MainLoop()
 
     LOG((LF_CORDB, LL_INFO1000, "DRCT::ML:: running main loop\n"));
 
-    // Anbody doing helper duty is in a can't-stop range, period.
+    // Anybody doing helper duty is in a can't-stop range, period.
     // Our helper thread is already in a can't-stop range, so this is particularly useful for
     // threads doing helper duty.
     CantStopHolder cantStopHolder;
@@ -1419,7 +1419,7 @@ void DebuggerRCThread::TemporaryHelperThreadMainLoop()
     CONTRACTL_END;
 
     STRESS_LOG0(LF_CORDB, LL_INFO1000, "DRCT::THTML:: Doing helper thread duty, running main loop.\n");
-    // Anbody doing helper duty is in a can't-stop range, period.
+    // Anybody doing helper duty is in a can't-stop range, period.
     // Our helper thread is already in a can't-stop range, so this is particularly useful for
     // threads doing helper duty.
     CantStopHolder cantStopHolder;

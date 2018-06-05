@@ -32,7 +32,7 @@
 #include "invokeutil.h"
 
 
-FCIMPL3(FC_BOOL_RET, Utf8String::EqualsCaseSensitive, LPCUTF8 szLhs, LPCUTF8 szRhs, INT32 stringNumBytes)
+FCIMPL3(FC_BOOL_RET, MdUtf8String::EqualsCaseSensitive, LPCUTF8 szLhs, LPCUTF8 szRhs, INT32 stringNumBytes)
 {
     CONTRACTL {
         FCALL_CHECK;
@@ -50,7 +50,7 @@ FCIMPL3(FC_BOOL_RET, Utf8String::EqualsCaseSensitive, LPCUTF8 szLhs, LPCUTF8 szR
 }
 FCIMPLEND
 
-BOOL QCALLTYPE Utf8String::EqualsCaseInsensitive(LPCUTF8 szLhs, LPCUTF8 szRhs, INT32 stringNumBytes)
+BOOL QCALLTYPE MdUtf8String::EqualsCaseInsensitive(LPCUTF8 szLhs, LPCUTF8 szRhs, INT32 stringNumBytes)
 {
     QCALL_CONTRACT;
 
@@ -77,7 +77,7 @@ BOOL QCALLTYPE Utf8String::EqualsCaseInsensitive(LPCUTF8 szLhs, LPCUTF8 szRhs, I
     return fStringsEqual;
 }
 
-ULONG QCALLTYPE Utf8String::HashCaseInsensitive(LPCUTF8 sz, INT32 stringNumBytes)
+ULONG QCALLTYPE MdUtf8String::HashCaseInsensitive(LPCUTF8 sz, INT32 stringNumBytes)
 {
     QCALL_CONTRACT;
 
@@ -114,12 +114,6 @@ static BOOL CheckCAVisibilityFromDecoratedType(MethodTable* pCAMT, MethodDesc* p
 
     if (pCACtor != NULL)
     {
-        // Allowing a dangerous method to be called in custom attribute instantiation is, well, dangerous.
-        // E.g. a malicious user can craft a custom attribute record that fools us into creating a DynamicMethod
-        // object attached to typeof(System.Reflection.CustomAttribute) and thus gain access to mscorlib internals.
-        if (InvokeUtil::IsDangerousMethod(pCACtor))
-            return FALSE;
-
         _ASSERTE(pCACtor->IsCtor());
 
         dwAttr = pCACtor->GetAttrs();
@@ -1012,7 +1006,6 @@ RuntimeTypeHandle::IsVisible(
 } // RuntimeTypeHandle::IsVisible
 
 FCIMPL2(FC_BOOL_RET, RuntimeTypeHandle::IsComObject, ReflectClassBaseObject *pTypeUNSAFE, CLR_BOOL isGenericCOM) {
-#ifdef FEATURE_COMINTEROP
     CONTRACTL {
         FCALL_CHECK;
     }
@@ -1037,17 +1030,6 @@ FCIMPL2(FC_BOOL_RET, RuntimeTypeHandle::IsComObject, ReflectClassBaseObject *pTy
     HELPER_METHOD_FRAME_END();
 
     FC_RETURN_BOOL(ret);
-#else
-    CONTRACTL {
-        DISABLED(NOTHROW);
-        GC_NOTRIGGER;
-        MODE_COOPERATIVE;
-        PRECONDITION(CheckPointer(pTypeUNSAFE));
-    }
-    CONTRACTL_END;
-    FCUnique(0x37);
-    FC_RETURN_BOOL(FALSE);
-#endif
 }
 FCIMPLEND
 

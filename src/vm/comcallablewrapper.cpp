@@ -958,13 +958,20 @@ void SimpleComCallWrapper::BuildRefCountLogMessage(LPCWSTR wszOperation, StackSS
             obj = *((_UNCHECKED_OBJECTREF *)(handle));
 
         if (ETW_EVENT_ENABLED(MICROSOFT_WINDOWS_DOTNETRUNTIME_PRIVATE_PROVIDER_Context, CCWRefCountChange)) 
+        {
+            SString className;
+            className.SetUTF8(pszClassName);
+            SString nameSpace;
+            nameSpace.SetUTF8(pszNamespace);
+
             FireEtwCCWRefCountChange(
                 handle, 
                 (Object *)obj, 
                 this, 
                 dwEstimatedRefCount, 
                 NULL,                   // domain value is not interesting in CoreCLR
-                pszClassName, pszNamespace, wszOperation, GetClrInstanceId());
+                className.GetUnicode(), nameSpace.GetUnicode(), wszOperation, GetClrInstanceId());
+        }
         
         if (g_pConfig->ShouldLogCCWRefCountChange(pszClassName, pszNamespace))
         {
@@ -2126,9 +2133,9 @@ void SimpleComCallWrapper::EnumConnectionPoints(IEnumConnectionPoints **ppEnumCP
 //  VTable and Stubs: can share stub code, we need to have different vtables
 //                    for different interfaces, so the stub can jump to different
 //                    marshalling code.
-//  Stubs : adjust this pointer and jump to the approp. address,
+//  Stubs : adjust this pointer and jump to the appropriate address,
 //  Marshalling params and results, based on the method signature the stub jumps to
-//  approp. code to handle marshalling and unmarshalling.
+//  appropriate code to handle marshalling and unmarshalling.
 //  
 //--------------------------------------------------------------------------
 
@@ -5398,7 +5405,7 @@ void ComCallWrapperTemplate::Cleanup()
     if (m_pIIDToInterfaceTemplateCache)
         delete m_pIIDToInterfaceTemplateCache;
 
-    delete[] this;
+    delete[] (BYTE*)this;
 }
 
 

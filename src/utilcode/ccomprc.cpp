@@ -5,7 +5,6 @@
 #include "stdafx.h"                     // Standard header.
 #include <utilcode.h>                   // Utility helpers.
 #include <corerror.h>
-#include "newapis.h"
 #include "ndpversion.h"
 
 #include "../dlls/mscorrc/resource.h"
@@ -83,7 +82,7 @@ int GetMUILanguageID(LocaleIDValue* pResult)
    *pResult= langId;
 #else // FEATURE_USE_LCID
     _ASSERTE(sizeof(LocaleID)/sizeof(WCHAR) >=LOCALE_NAME_MAX_LENGTH);
-    return NewApis::GetSystemDefaultLocaleName(*pResult, LOCALE_NAME_MAX_LENGTH);
+    return ::GetSystemDefaultLocaleName(*pResult, LOCALE_NAME_MAX_LENGTH);
 #endif //FEATURE_USE_LCID
    return 1;
 }
@@ -118,7 +117,7 @@ void GetMUILanguageName(__out SString* pResult)
 #ifdef FEATURE_USE_LCID
     lcid=langid;
 #else
-    lcid=NewApis::LocaleNameToLCID(langid,0);
+    lcid=::LocaleNameToLCID(langid,0);
 #endif
 
     return BuildMUIDirectory(lcid, pResult);
@@ -921,7 +920,6 @@ HRESULT CCompRC::LoadLibraryHelper(HRESOURCEDLL *pHInst,
     CONTRACTL_END;
     
     HRESULT     hr = E_FAIL;
-    size_t      rcPartialPathLen;
     
 
     _ASSERTE(m_pResourceFile != NULL);

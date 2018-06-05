@@ -39,7 +39,6 @@
 #include <formattype.h>
 #include "fieldmarshaler.h"
 #include "sigbuilder.h"
-#include "tls.h"
 #include "metadataexports.h"
 #include "inlinetracking.h"
 
@@ -86,13 +85,13 @@
 #pragma warning(disable:4244)
 #endif // _MSC_VER
 
-#ifdef _WIN64 
+#ifdef _TARGET_64BIT_
 #define COR_VTABLE_PTRSIZED     COR_VTABLE_64BIT
 #define COR_VTABLE_NOT_PTRSIZED COR_VTABLE_32BIT
-#else // !_WIN64
+#else // !_TARGET_64BIT_
 #define COR_VTABLE_PTRSIZED     COR_VTABLE_32BIT
 #define COR_VTABLE_NOT_PTRSIZED COR_VTABLE_64BIT
-#endif // !_WIN64
+#endif // !_TARGET_64BIT_
 
 #define CEE_FILE_GEN_GROWTH_COLLECTIBLE 2048
 
@@ -675,7 +674,6 @@ GuidToMethodTableEntry *GuidToMethodTableHashTable::InsertValue(PTR_GUID pGuid, 
     CONTRACTL_END;
 
     GuidToMethodTableEntry *pEntry = NULL;
-    LookupContext ctx;
 
     if (bReplaceIfFound)
     {
@@ -2140,7 +2138,7 @@ void Module::BuildStaticsOffsets(AllocMemTracker *pamTracker)
                         (S_SIZE_T(2 * sizeof(DWORD))*(S_SIZE_T(dwNumTypes)+S_SIZE_T(1)))));
 
                 for (DWORD i = 0; i < dwIndex; i++) {
-                    pRegularStaticOffsets[i * 2    ] = dwGCHandles[0]*sizeof(OBJECTREF);
+                    pRegularStaticOffsets[i * 2    ] = dwGCHandles[0]*TARGET_POINTER_SIZE;
                     pRegularStaticOffsets[i * 2 + 1] = dwNonGCBytes[0];                    
                 }
             }
@@ -2153,7 +2151,7 @@ void Module::BuildStaticsOffsets(AllocMemTracker *pamTracker)
                         (S_SIZE_T(2 * sizeof(DWORD))*(S_SIZE_T(dwNumTypes)+S_SIZE_T(1)))));
 
                 for (DWORD i = 0; i < dwIndex; i++) {
-                    pThreadStaticOffsets[i * 2    ] = dwGCHandles[1]*sizeof(OBJECTREF);
+                    pThreadStaticOffsets[i * 2    ] = dwGCHandles[1]*TARGET_POINTER_SIZE;
                     pThreadStaticOffsets[i * 2 + 1] = dwNonGCBytes[1];                    
                 }
             }
@@ -2165,7 +2163,7 @@ void Module::BuildStaticsOffsets(AllocMemTracker *pamTracker)
             dwNonGCBytes[0] = (DWORD) ALIGN_UP(dwNonGCBytes[0], dwAlignment[0]);
 
             // Save current offsets
-            pRegularStaticOffsets[dwIndex*2]     = dwGCHandles[0]*sizeof(OBJECTREF);
+            pRegularStaticOffsets[dwIndex*2]     = dwGCHandles[0]*TARGET_POINTER_SIZE;
             pRegularStaticOffsets[dwIndex*2 + 1] = dwNonGCBytes[0];
         
             // Increment for next class
@@ -2179,7 +2177,7 @@ void Module::BuildStaticsOffsets(AllocMemTracker *pamTracker)
             dwNonGCBytes[1] = (DWORD) ALIGN_UP(dwNonGCBytes[1], dwAlignment[1]);
 
             // Save current offsets
-            pThreadStaticOffsets[dwIndex*2]     = dwGCHandles[1]*sizeof(OBJECTREF);
+            pThreadStaticOffsets[dwIndex*2]     = dwGCHandles[1]*TARGET_POINTER_SIZE;
             pThreadStaticOffsets[dwIndex*2 + 1] = dwNonGCBytes[1];
         
             // Increment for next class
@@ -2192,13 +2190,13 @@ void Module::BuildStaticsOffsets(AllocMemTracker *pamTracker)
 
     if (pRegularStaticOffsets != NULL)
     {
-        pRegularStaticOffsets[dwNumTypes*2]     = dwGCHandles[0]*sizeof(OBJECTREF);
+        pRegularStaticOffsets[dwNumTypes*2]     = dwGCHandles[0]*TARGET_POINTER_SIZE;
         pRegularStaticOffsets[dwNumTypes*2 + 1] = dwNonGCBytes[0];
     }
 
     if (pThreadStaticOffsets != NULL)
     {
-        pThreadStaticOffsets[dwNumTypes*2]     = dwGCHandles[1]*sizeof(OBJECTREF);
+        pThreadStaticOffsets[dwNumTypes*2]     = dwGCHandles[1]*TARGET_POINTER_SIZE;
         pThreadStaticOffsets[dwNumTypes*2 + 1] = dwNonGCBytes[1];
     }
 
@@ -13437,7 +13435,7 @@ VASigCookie *Module::GetVASigCookie(Signature vaSignature)
             pCookie->sizeOfArgs = sizeOfArgs;
             pCookie->signature = vaSignature;
 
-            // Finally, now that it's safe for ansynchronous readers to see it,
+            // Finally, now that it's safe for asynchronous readers to see it,
             // update the count.
             m_pVASigCookieBlock->m_numcookies++;
         }

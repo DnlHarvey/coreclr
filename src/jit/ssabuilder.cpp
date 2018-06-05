@@ -120,16 +120,6 @@ void Compiler::fgResetForSsa()
                     tree->gtLclVarCommon.SetSsaNum(SsaConfig::RESERVED_SSA_NUM);
                     continue;
                 }
-
-                Compiler::IndirectAssignmentAnnotation* pIndirAssign = nullptr;
-                if ((tree->OperGet() != GT_ASG) || !GetIndirAssignMap()->Lookup(tree, &pIndirAssign) ||
-                    (pIndirAssign == nullptr))
-                {
-                    continue;
-                }
-
-                pIndirAssign->m_defSsaNum = SsaConfig::RESERVED_SSA_NUM;
-                pIndirAssign->m_useSsaNum = SsaConfig::RESERVED_SSA_NUM;
             }
         }
     }
@@ -174,73 +164,63 @@ int SsaBuilder::TopologicalSort(BasicBlock** postOrder, int count)
     DBEXEC(VERBOSE, comp->fgDispBasicBlocks());
     DBEXEC(VERBOSE, comp->fgDispHandlerTab());
 
+    auto DumpBlockAndSuccessors = [](Compiler* comp, BasicBlock* block) {
+#ifdef DEBUG
+        if (comp->verboseSsa)
+        {
+            printf("[SsaBuilder::TopologicalSort] Pushing BB%02u: [", block->bbNum);
+            AllSuccessorEnumerator successors(comp, block);
+            unsigned               index = 0;
+            while (true)
+            {
+                bool        isEHsucc = successors.IsNextEHSuccessor();
+                BasicBlock* succ     = successors.NextSuccessor(comp);
+
+                if (succ == nullptr)
+                {
+                    break;
+                }
+
+                printf("%s%sBB%02u", (index++ ? ", " : ""), (isEHsucc ? "[EH]" : ""), succ->bbNum);
+            }
+            printf("]\n");
+        }
+#endif
+    };
+
     // Compute order.
     int         postIndex = 0;
     BasicBlock* block     = comp->fgFirstBB;
     BitVecOps::AddElemD(&m_visitedTraits, m_visited, block->bbNum);
 
-    ArrayStack<BasicBlock*>      blocks(comp);
-    ArrayStack<AllSuccessorIter> iterators(comp);
-    ArrayStack<AllSuccessorIter> ends(comp);
+    ArrayStack<AllSuccessorEnumerator> blocks(comp);
 
-    // there are three stacks used here and all should be same height
-    // the first is for blocks
-    // the second is the iterator to keep track of what succ of the block we are looking at
-    // and the third is the end marker iterator
-    blocks.Push(block);
-    iterators.Push(block->GetAllSuccs(comp).begin());
-    ends.Push(block->GetAllSuccs(comp).end());
+    blocks.Emplace(comp, block);
+    DumpBlockAndSuccessors(comp, block);
 
     while (blocks.Height() > 0)
     {
-        block = blocks.Top();
+        BasicBlock* block = blocks.TopRef().Block();
+        BasicBlock* succ  = blocks.TopRef().NextSuccessor(comp);
 
-#ifdef DEBUG
-        if (comp->verboseSsa)
-        {
-            printf("[SsaBuilder::TopologicalSort] Visiting BB%02u: ", block->bbNum);
-            printf("[");
-            unsigned numSucc = block->NumSucc(comp);
-            for (unsigned i = 0; i < numSucc; ++i)
-            {
-                printf("BB%02u, ", block->GetSucc(i, comp)->bbNum);
-            }
-            EHSuccessorIter end = block->GetEHSuccs(comp).end();
-            for (EHSuccessorIter ehsi = block->GetEHSuccs(comp).begin(); ehsi != end; ++ehsi)
-            {
-                printf("[EH]BB%02u, ", (*ehsi)->bbNum);
-            }
-            printf("]\n");
-        }
-#endif
-
-        if (iterators.TopRef() != ends.TopRef())
+        if (succ != nullptr)
         {
             // if the block on TOS still has unreached successors, visit them
-            AllSuccessorIter& iter = iterators.TopRef();
-            BasicBlock*       succ = *iter;
-            ++iter;
-
-            // push the children
             if (BitVecOps::TryAddElemD(&m_visitedTraits, m_visited, succ->bbNum))
             {
-                blocks.Push(succ);
-                iterators.Push(succ->GetAllSuccs(comp).begin());
-                ends.Push(succ->GetAllSuccs(comp).end());
+                blocks.Emplace(comp, succ);
+                DumpBlockAndSuccessors(comp, succ);
             }
         }
         else
         {
             // all successors have been visited
             blocks.Pop();
-            iterators.Pop();
-            ends.Pop();
 
+            DBG_SSA_JITDUMP("[SsaBuilder::TopologicalSort] postOrder[%d] = BB%02u\n", postIndex, block->bbNum);
             postOrder[postIndex]  = block;
             block->bbPostOrderNum = postIndex;
             postIndex += 1;
-
-            DBG_SSA_JITDUMP("postOrder[%d] = %s\n", postIndex, block->dspToString());
         }
     }
 
@@ -354,7 +334,7 @@ void SsaBuilder::ComputeImmediateDom(BasicBlock** postOrder, int count)
  * @remarks This would help us answer queries such as "a dom b?" in constant time.
  *          For example, if a dominated b, then Pre[a] < Pre[b] but Post[a] > Post[b]
  */
-void SsaBuilder::DomTreeWalk(BasicBlock* curBlock, BlkToBlkSetMap* domTree, int* preIndex, int* postIndex)
+void SsaBuilder::DomTreeWalk(BasicBlock* curBlock, BlkToBlkVectorMap* domTree, int* preIndex, int* postIndex)
 {
     JITDUMP("[SsaBuilder::DomTreeWalk] block %s:\n", curBlock->dspToString());
 
@@ -362,14 +342,14 @@ void SsaBuilder::DomTreeWalk(BasicBlock* curBlock, BlkToBlkSetMap* domTree, int*
     m_pDomPreOrder[curBlock->bbNum] = *preIndex;
     ++(*preIndex);
 
-    BlkSet* pBlkSet;
-    if (domTree->Lookup(curBlock, &pBlkSet))
+    BlkVector* domChildren = domTree->LookupPointer(curBlock);
+    if (domChildren != nullptr)
     {
-        for (BlkSet::KeyIterator ki = pBlkSet->Begin(); !ki.Equal(pBlkSet->End()); ++ki)
+        for (BasicBlock* child : *domChildren)
         {
-            if (curBlock != ki.Get())
+            if (curBlock != child)
             {
-                DomTreeWalk(ki.Get(), domTree, preIndex, postIndex);
+                DomTreeWalk(child, domTree, preIndex, postIndex);
             }
         }
     }
@@ -388,7 +368,7 @@ void SsaBuilder::DomTreeWalk(BasicBlock* curBlock, BlkToBlkSetMap* domTree, int*
  *
  */
 /* static */
-void SsaBuilder::ConstructDomTreeForBlock(Compiler* pCompiler, BasicBlock* block, BlkToBlkSetMap* domTree)
+void SsaBuilder::ConstructDomTreeForBlock(Compiler* pCompiler, BasicBlock* block, BlkToBlkVectorMap* domTree)
 {
     BasicBlock* bbIDom = block->bbIDom;
 
@@ -399,16 +379,11 @@ void SsaBuilder::ConstructDomTreeForBlock(Compiler* pCompiler, BasicBlock* block
     }
 
     // If the bbIDom map key doesn't exist, create one.
-    BlkSet* pBlkSet;
-    if (!domTree->Lookup(bbIDom, &pBlkSet))
-    {
-        pBlkSet = new (domTree->GetAllocator()) BlkSet(domTree->GetAllocator());
-        domTree->Set(bbIDom, pBlkSet);
-    }
+    BlkVector* domChildren = domTree->Emplace(bbIDom, domTree->GetAllocator());
 
     DBG_SSA_JITDUMP("Inserting BB%02u as dom child of BB%02u.\n", block->bbNum, bbIDom->bbNum);
     // Insert the block into the block's set.
-    pBlkSet->Set(block, true);
+    domChildren->push_back(block);
 }
 
 /**
@@ -421,7 +396,7 @@ void SsaBuilder::ConstructDomTreeForBlock(Compiler* pCompiler, BasicBlock* block
  *
  */
 /* static */
-void SsaBuilder::ComputeDominators(Compiler* pCompiler, BlkToBlkSetMap* domTree)
+void SsaBuilder::ComputeDominators(Compiler* pCompiler, BlkToBlkVectorMap* domTree)
 {
     JITDUMP("*************** In SsaBuilder::ComputeDominators(Compiler*, ...)\n");
 
@@ -445,7 +420,7 @@ void SsaBuilder::ComputeDominators(Compiler* pCompiler, BlkToBlkSetMap* domTree)
  * @param domTree A map of (block -> set of blocks) tree representation that is empty.
  *
  */
-void SsaBuilder::ComputeDominators(BasicBlock** postOrder, int count, BlkToBlkSetMap* domTree)
+void SsaBuilder::ComputeDominators(BasicBlock** postOrder, int count, BlkToBlkVectorMap* domTree)
 {
     JITDUMP("*************** In SsaBuilder::ComputeDominators(BasicBlock** postOrder, int count, ...)\n");
 
@@ -481,21 +456,16 @@ void SsaBuilder::ComputeDominators(BasicBlock** postOrder, int count, BlkToBlkSe
  * @param domTree A map of (block -> set of blocks) tree representation.
  */
 /* static */
-void SsaBuilder::DisplayDominators(BlkToBlkSetMap* domTree)
+void SsaBuilder::DisplayDominators(BlkToBlkVectorMap* domTree)
 {
     printf("After computing dominator tree: \n");
-    for (BlkToBlkSetMap::KeyIterator nodes = domTree->Begin(); !nodes.Equal(domTree->End()); ++nodes)
+    for (BlkToBlkVectorMap::KeyIterator nodes = domTree->Begin(); !nodes.Equal(domTree->End()); ++nodes)
     {
         printf("BB%02u := {", nodes.Get()->bbNum);
-
-        BlkSet* pBlkSet = nodes.GetValue();
-        for (BlkSet::KeyIterator ki = pBlkSet->Begin(); !ki.Equal(pBlkSet->End()); ++ki)
+        int index = 0;
+        for (BasicBlock* child : nodes.GetValue())
         {
-            if (!ki.Equal(pBlkSet->Begin()))
-            {
-                printf(",");
-            }
-            printf("BB%02u", ki.Get()->bbNum);
+            printf("%sBB%02u", (index++ == 0) ? "" : ",", child->bbNum);
         }
         printf("}\n");
     }
@@ -503,15 +473,26 @@ void SsaBuilder::DisplayDominators(BlkToBlkSetMap* domTree)
 
 #endif // DEBUG
 
-// (Spec comment at declaration.)
-// See "A simple, fast dominance algorithm", by Cooper, Harvey, and Kennedy.
-// First we compute the dominance frontier for each block, then we convert these to iterated
-// dominance frontiers by a closure operation.
-BlkToBlkVectorMap* SsaBuilder::ComputeIteratedDominanceFrontier(BasicBlock** postOrder, int count)
+//------------------------------------------------------------------------
+// ComputeDominanceFrontiers: Compute flow graph dominance frontiers
+//
+// Arguments:
+//    postOrder - an array containing all flow graph blocks
+//    count     - the number of blocks in the postOrder array
+//    mapDF     - a caller provided hashtable that will be populated
+//                with blocks and their dominance frontiers (only those
+//                blocks that have non-empty frontiers will be included)
+//
+// Notes:
+//     Recall that the dominance frontier of a block B is the set of blocks
+//     B3 such that there exists some B2 s.t. B3 is a successor of B2, and
+//     B dominates B2. Note that this dominance need not be strict -- B2
+//     and B may be the same node.
+//     See "A simple, fast dominance algorithm", by Cooper, Harvey, and Kennedy.
+//
+void SsaBuilder::ComputeDominanceFrontiers(BasicBlock** postOrder, int count, BlkToBlkVectorMap* mapDF)
 {
-    BlkToBlkVectorMap mapDF(&m_allocator);
-
-    DBG_SSA_JITDUMP("Computing IDF: First computing DF.\n");
+    DBG_SSA_JITDUMP("Computing DF:\n");
 
     for (int i = 0; i < count; ++i)
     {
@@ -557,7 +538,7 @@ BlkToBlkVectorMap* SsaBuilder::ComputeIteratedDominanceFrontier(BasicBlock** pos
             {
                 DBG_SSA_JITDUMP("      Adding BB%02u to dom frontier of pred dom BB%02u.\n", block->bbNum, b1->bbNum);
 
-                BlkVector& b1DF = *mapDF.Emplace(b1, &m_allocator);
+                BlkVector& b1DF = *mapDF->Emplace(b1, &m_allocator);
                 // It's possible to encounter the same DF multiple times, ensure that we don't add duplicates.
                 if (b1DF.empty() || (b1DF.back() != block))
                 {
@@ -576,42 +557,51 @@ BlkToBlkVectorMap* SsaBuilder::ComputeIteratedDominanceFrontier(BasicBlock** pos
             BasicBlock* b = postOrder[i];
             printf("Block BB%02u := {", b->bbNum);
 
-            bool       first = true;
-            BlkVector* bDF   = mapDF.LookupPointer(b);
+            BlkVector* bDF = mapDF->LookupPointer(b);
             if (bDF != nullptr)
             {
+                int index = 0;
                 for (BasicBlock* f : *bDF)
                 {
-                    if (!first)
-                    {
-                        printf(",");
-                    }
-                    printf("BB%02u", f->bbNum);
-                    first = false;
+                    printf("%sBB%02u", (index++ == 0) ? "" : ",", f->bbNum);
                 }
             }
             printf("}\n");
         }
     }
 #endif
+}
 
-    // Now do the closure operation to make the dominance frontier into an IDF.
-    BlkToBlkVectorMap* mapIDF = new (&m_allocator) BlkToBlkVectorMap(&m_allocator);
-    mapIDF->Reallocate(mapDF.GetCount());
+//------------------------------------------------------------------------
+// ComputeIteratedDominanceFrontier: Compute the iterated dominance frontier
+// for the specified block.
+//
+// Arguments:
+//    b     - the block to computed the frontier for
+//    mapDF - a map containing the dominance frontiers of all blocks
+//    bIDF  - a caller provided vector where the IDF is to be stored
+//
+// Notes:
+//    The iterated dominance frontier is formed by a closure operation:
+//    the IDF of B is the smallest set that includes B's dominance frontier,
+//    and also includes the dominance frontier of all elements of the set.
+//
+void SsaBuilder::ComputeIteratedDominanceFrontier(BasicBlock* b, const BlkToBlkVectorMap* mapDF, BlkVector* bIDF)
+{
+    assert(bIDF->empty());
 
-    for (BlkToBlkVectorMap::KeyIterator ki = mapDF.Begin(); !ki.Equal(mapDF.End()); ki++)
+    BlkVector* bDF = mapDF->LookupPointer(b);
+
+    if (bDF != nullptr)
     {
         // Compute IDF(b) - start by adding DF(b) to IDF(b).
-        BasicBlock* b    = ki.Get();
-        BlkVector&  bDF  = ki.GetValue();
-        BlkVector&  bIDF = *mapIDF->Emplace(b, &m_allocator);
-        bIDF.reserve(bDF.size());
+        bIDF->reserve(bDF->size());
         BitVecOps::ClearD(&m_visitedTraits, m_visited);
 
-        for (BasicBlock* f : bDF)
+        for (BasicBlock* f : *bDF)
         {
             BitVecOps::AddElemD(&m_visitedTraits, m_visited, f->bbNum);
-            bIDF.push_back(f);
+            bIDF->push_back(f);
         }
 
         // Now for each block f from IDF(b) add DF(f) to IDF(b). This may result in new
@@ -619,10 +609,10 @@ BlkToBlkVectorMap* SsaBuilder::ComputeIteratedDominanceFrontier(BasicBlock** pos
         // are added. Note that since we keep adding to bIDF we can't use iterators as
         // they may get invalidated. This happens to be a convenient way to avoid having
         // to track newly added blocks in a separate set.
-        for (size_t newIndex = 0; newIndex < bIDF.size(); newIndex++)
+        for (size_t newIndex = 0; newIndex < bIDF->size(); newIndex++)
         {
-            BasicBlock* f   = bIDF[newIndex];
-            BlkVector*  fDF = mapDF.LookupPointer(f);
+            BasicBlock* f   = (*bIDF)[newIndex];
+            BlkVector*  fDF = mapDF->LookupPointer(f);
 
             if (fDF != nullptr)
             {
@@ -630,7 +620,7 @@ BlkToBlkVectorMap* SsaBuilder::ComputeIteratedDominanceFrontier(BasicBlock** pos
                 {
                     if (BitVecOps::TryAddElemD(&m_visitedTraits, m_visited, ff->bbNum))
                     {
-                        bIDF.push_back(ff);
+                        bIDF->push_back(ff);
                     }
                 }
             }
@@ -640,32 +630,15 @@ BlkToBlkVectorMap* SsaBuilder::ComputeIteratedDominanceFrontier(BasicBlock** pos
 #ifdef DEBUG
     if (m_pCompiler->verboseSsa)
     {
-        printf("\nComputed IDF:\n");
-        for (int i = 0; i < count; ++i)
+        printf("IDF(BB%02u) := {", b->bbNum);
+        int index = 0;
+        for (BasicBlock* f : *bIDF)
         {
-            BasicBlock* b = postOrder[i];
-            printf("Block BB%02u := {", b->bbNum);
-
-            bool       first = true;
-            BlkVector* bIDF  = mapIDF->LookupPointer(b);
-            if (bIDF != nullptr)
-            {
-                for (BasicBlock* f : *bIDF)
-                {
-                    if (!first)
-                    {
-                        printf(",");
-                    }
-                    printf("BB%02u", f->bbNum);
-                    first = false;
-                }
-            }
-            printf("}\n");
+            printf("%sBB%02u", (index++ == 0) ? "" : ",", f->bbNum);
         }
+        printf("}\n");
     }
 #endif
-
-    return mapIDF;
 }
 
 /**
@@ -719,8 +692,12 @@ void SsaBuilder::InsertPhiFunctions(BasicBlock** postOrder, int count)
     EndPhase(PHASE_BUILD_SSA_LIVENESS);
 
     // Compute dominance frontier.
-    BlkToBlkVectorMap* mapIDF = ComputeIteratedDominanceFrontier(postOrder, count);
-    EndPhase(PHASE_BUILD_SSA_IDF);
+    BlkToBlkVectorMap mapDF(&m_allocator);
+    ComputeDominanceFrontiers(postOrder, count, &mapDF);
+    EndPhase(PHASE_BUILD_SSA_DF);
+
+    // Use the same IDF vector for all blocks to avoid unnecessary memory allocations
+    BlkVector blockIDF(&m_allocator);
 
     JITDUMP("Inserting phi functions:\n");
 
@@ -729,9 +706,10 @@ void SsaBuilder::InsertPhiFunctions(BasicBlock** postOrder, int count)
         BasicBlock* block = postOrder[i];
         DBG_SSA_JITDUMP("Considering dominance frontier of block BB%02u:\n", block->bbNum);
 
-        // If the block's dominance frontier is empty, go on to the next block.
-        BlkVector* blkIdf = mapIDF->LookupPointer(block);
-        if (blkIdf == nullptr)
+        blockIDF.clear();
+        ComputeIteratedDominanceFrontier(block, &mapDF, &blockIDF);
+
+        if (blockIDF.empty())
         {
             continue;
         }
@@ -751,7 +729,7 @@ void SsaBuilder::InsertPhiFunctions(BasicBlock** postOrder, int count)
             }
 
             // For each block "bbInDomFront" that is in the dominance frontier of "block"...
-            for (BasicBlock* bbInDomFront : *blkIdf)
+            for (BasicBlock* bbInDomFront : blockIDF)
             {
                 DBG_SSA_JITDUMP("     Considering BB%02u in dom frontier of BB%02u:\n", bbInDomFront->bbNum,
                                 block->bbNum);
@@ -792,7 +770,7 @@ void SsaBuilder::InsertPhiFunctions(BasicBlock** postOrder, int count)
         if (block->bbMemoryDef != 0)
         {
             // For each block "bbInDomFront" that is in the dominance frontier of "block".
-            for (BasicBlock* bbInDomFront : *blkIdf)
+            for (BasicBlock* bbInDomFront : blockIDF)
             {
                 DBG_SSA_JITDUMP("     Considering BB%02u in dom frontier of BB%02u for Memory phis:\n",
                                 bbInDomFront->bbNum, block->bbNum);
@@ -847,24 +825,9 @@ void SsaBuilder::InsertPhiFunctions(BasicBlock** postOrder, int count)
  */
 void SsaBuilder::AddDefPoint(GenTree* tree, BasicBlock* blk)
 {
-    Compiler::IndirectAssignmentAnnotation* pIndirAnnot;
-    // In the case of an "indirect assignment", where the LHS is IND of a byref to the local actually being assigned,
-    // we make the ASG tree the def point.
-    assert(tree->IsLocal() || IsIndirectAssign(tree, &pIndirAnnot));
-    unsigned lclNum;
-    unsigned defSsaNum;
-    if (tree->IsLocal())
-    {
-        lclNum    = tree->gtLclVarCommon.gtLclNum;
-        defSsaNum = m_pCompiler->GetSsaNumForLocalVarDef(tree);
-    }
-    else
-    {
-        bool b = m_pCompiler->GetIndirAssignMap()->Lookup(tree, &pIndirAnnot);
-        assert(b);
-        lclNum    = pIndirAnnot->m_lclNum;
-        defSsaNum = pIndirAnnot->m_defSsaNum;
-    }
+    assert(tree->IsLocal());
+    unsigned lclNum    = tree->gtLclVarCommon.gtLclNum;
+    unsigned defSsaNum = m_pCompiler->GetSsaNumForLocalVarDef(tree);
 #ifdef DEBUG
     // Record that there's a new SSA def.
     m_pCompiler->lvaTable[lclNum].lvNumSsaNames++;
@@ -873,12 +836,6 @@ void SsaBuilder::AddDefPoint(GenTree* tree, BasicBlock* blk)
     LclSsaVarDsc* ssaDef    = m_pCompiler->lvaTable[lclNum].GetPerSsaData(defSsaNum);
     ssaDef->m_defLoc.m_blk  = blk;
     ssaDef->m_defLoc.m_tree = tree;
-}
-
-bool SsaBuilder::IsIndirectAssign(GenTree* tree, Compiler::IndirectAssignmentAnnotation** ppIndirAssign)
-{
-    return tree->OperGet() == GT_ASG && m_pCompiler->m_indirAssignMap != nullptr &&
-           m_pCompiler->GetIndirAssignMap()->Lookup(tree, ppIndirAssign);
 }
 
 /**
@@ -973,97 +930,74 @@ void SsaBuilder::TreeRenameVariables(GenTree* tree, BasicBlock* block, SsaRename
         }
     }
 
-    Compiler::IndirectAssignmentAnnotation* pIndirAssign = nullptr;
-    if (!tree->IsLocal() && !IsIndirectAssign(tree, &pIndirAssign))
+    if (!tree->IsLocal())
     {
         return;
     }
 
-    if (pIndirAssign != nullptr)
+    unsigned lclNum = tree->gtLclVarCommon.gtLclNum;
+    // Is this a variable we exclude from SSA?
+    if (m_pCompiler->fgExcludeFromSsa(lclNum))
     {
-        unsigned lclNum = pIndirAssign->m_lclNum;
-        // Is this a variable we exclude from SSA?
-        if (m_pCompiler->fgExcludeFromSsa(lclNum))
-        {
-            pIndirAssign->m_defSsaNum = SsaConfig::RESERVED_SSA_NUM;
-            return;
-        }
-        // Otherwise...
-        if (!pIndirAssign->m_isEntire)
-        {
-            pIndirAssign->m_useSsaNum = pRenameState->CountForUse(lclNum);
-        }
-        unsigned count            = pRenameState->CountForDef(lclNum);
-        pIndirAssign->m_defSsaNum = count;
-        pRenameState->Push(block, lclNum, count);
-        AddDefPoint(tree, block);
+        tree->gtLclVarCommon.SetSsaNum(SsaConfig::RESERVED_SSA_NUM);
+        return;
     }
-    else
+
+    if (tree->gtFlags & GTF_VAR_DEF)
     {
-        unsigned lclNum = tree->gtLclVarCommon.gtLclNum;
-        // Is this a variable we exclude from SSA?
-        if (m_pCompiler->fgExcludeFromSsa(lclNum))
+        if (tree->gtFlags & GTF_VAR_USEASG)
         {
-            tree->gtLclVarCommon.SetSsaNum(SsaConfig::RESERVED_SSA_NUM);
-            return;
-        }
-
-        if (tree->gtFlags & GTF_VAR_DEF)
-        {
-            if (tree->gtFlags & GTF_VAR_USEASG)
-            {
-                // This the "x" in something like "x op= y"; it is both a use (first), then a def.
-                // The def will define a new SSA name, and record that in "x".  If we need the SSA
-                // name of the use, we record it in a map reserved for that purpose.
-                unsigned count = pRenameState->CountForUse(lclNum);
-                tree->gtLclVarCommon.SetSsaNum(count);
-            }
-
-            // Give a count and increment.
-            unsigned count = pRenameState->CountForDef(lclNum);
-            if (tree->gtFlags & GTF_VAR_USEASG)
-            {
-                m_pCompiler->GetOpAsgnVarDefSsaNums()->Set(tree, count);
-            }
-            else
-            {
-                tree->gtLclVarCommon.SetSsaNum(count);
-            }
-            pRenameState->Push(block, lclNum, count);
-            AddDefPoint(tree, block);
-
-            // If necessary, add "lclNum/count" to the arg list of a phi def in any
-            // handlers for try blocks that "block" is within.  (But only do this for "real" definitions,
-            // not phi definitions.)
-            if (!isPhiDefn)
-            {
-                AddDefToHandlerPhis(block, lclNum, count);
-            }
-        }
-        else if (!isPhiDefn) // Phi args already have ssa numbers.
-        {
-            // This case is obviated by the short-term "early-out" above...but it's in the right direction.
-            // Is it a promoted struct local?
-            if (m_pCompiler->lvaTable[lclNum].lvPromoted)
-            {
-                assert(tree->TypeGet() == TYP_STRUCT);
-                LclVarDsc* varDsc = &m_pCompiler->lvaTable[lclNum];
-                // If has only a single field var, treat this as a use of that field var.
-                // Otherwise, we don't give SSA names to uses of promoted struct vars.
-                if (varDsc->lvFieldCnt == 1)
-                {
-                    lclNum = varDsc->lvFieldLclStart;
-                }
-                else
-                {
-                    tree->gtLclVarCommon.SetSsaNum(SsaConfig::RESERVED_SSA_NUM);
-                    return;
-                }
-            }
-            // Give the count as top of stack.
+            // This the "x" in something like "x op= y"; it is both a use (first), then a def.
+            // The def will define a new SSA name, and record that in "x".  If we need the SSA
+            // name of the use, we record it in a map reserved for that purpose.
             unsigned count = pRenameState->CountForUse(lclNum);
             tree->gtLclVarCommon.SetSsaNum(count);
         }
+
+        // Give a count and increment.
+        unsigned count = pRenameState->CountForDef(lclNum);
+        if (tree->gtFlags & GTF_VAR_USEASG)
+        {
+            m_pCompiler->GetOpAsgnVarDefSsaNums()->Set(tree, count);
+        }
+        else
+        {
+            tree->gtLclVarCommon.SetSsaNum(count);
+        }
+        pRenameState->Push(block, lclNum, count);
+        AddDefPoint(tree, block);
+
+        // If necessary, add "lclNum/count" to the arg list of a phi def in any
+        // handlers for try blocks that "block" is within.  (But only do this for "real" definitions,
+        // not phi definitions.)
+        if (!isPhiDefn)
+        {
+            AddDefToHandlerPhis(block, lclNum, count);
+        }
+    }
+    else if (!isPhiDefn) // Phi args already have ssa numbers.
+    {
+        // This case is obviated by the short-term "early-out" above...but it's in the right direction.
+        // Is it a promoted struct local?
+        if (m_pCompiler->lvaTable[lclNum].lvPromoted)
+        {
+            assert(tree->TypeGet() == TYP_STRUCT);
+            LclVarDsc* varDsc = &m_pCompiler->lvaTable[lclNum];
+            // If has only a single field var, treat this as a use of that field var.
+            // Otherwise, we don't give SSA names to uses of promoted struct vars.
+            if (varDsc->lvFieldCnt == 1)
+            {
+                lclNum = varDsc->lvFieldLclStart;
+            }
+            else
+            {
+                tree->gtLclVarCommon.SetSsaNum(SsaConfig::RESERVED_SSA_NUM);
+                return;
+            }
+        }
+        // Give the count as top of stack.
+        unsigned count = pRenameState->CountForUse(lclNum);
+        tree->gtLclVarCommon.SetSsaNum(count);
     }
 }
 
@@ -1611,7 +1545,7 @@ void SsaBuilder::BlockPopStacks(BasicBlock* block, SsaRenameState* pRenameState)
  *      and Destruction of Static Single Assignment Form."
  */
 
-void SsaBuilder::RenameVariables(BlkToBlkSetMap* domTree, SsaRenameState* pRenameState)
+void SsaBuilder::RenameVariables(BlkToBlkVectorMap* domTree, SsaRenameState* pRenameState)
 {
     JITDUMP("*************** In SsaBuilder::RenameVariables()\n");
 
@@ -1704,13 +1638,13 @@ void SsaBuilder::RenameVariables(BlkToBlkSetMap* domTree, SsaRenameState* pRenam
             AssignPhiNodeRhsVariables(block, pRenameState);
 
             // Recurse with the block's DOM children.
-            BlkSet* pBlkSet;
-            if (domTree->Lookup(block, &pBlkSet))
+            BlkVector* domChildren = domTree->LookupPointer(block);
+            if (domChildren != nullptr)
             {
-                for (BlkSet::KeyIterator child = pBlkSet->Begin(); !child.Equal(pBlkSet->End()); ++child)
+                for (BasicBlock* child : *domChildren)
                 {
-                    DBG_SSA_JITDUMP("[SsaBuilder::RenameVariables](pushing dom child BB%02u)\n", child.Get()->bbNum);
-                    blocksToDo->push_back(BlockWork(child.Get()));
+                    DBG_SSA_JITDUMP("[SsaBuilder::RenameVariables](pushing dom child BB%02u)\n", child->bbNum);
+                    blocksToDo->push_back(BlockWork(child));
                 }
             }
         }
@@ -1824,7 +1758,7 @@ void SsaBuilder::Build()
     ComputeImmediateDom(postOrder, count);
 
     // Compute the dominator tree.
-    BlkToBlkSetMap* domTree = new (&m_allocator) BlkToBlkSetMap(&m_allocator);
+    BlkToBlkVectorMap* domTree = new (&m_allocator) BlkToBlkVectorMap(&m_allocator);
     ComputeDominators(postOrder, count, domTree);
     EndPhase(PHASE_BUILD_SSA_DOMS);
 

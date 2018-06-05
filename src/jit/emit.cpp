@@ -323,7 +323,6 @@ void emitterStaticStats(FILE* fout)
     fprintf(fout, "Size   of insPlaceholderGroupData = %u\n", sizeof(insPlaceholderGroupData));
 
     fprintf(fout, "\n");
-    fprintf(fout, "Size   of tinyID      = %2u\n", TINY_IDSC_SIZE);
     fprintf(fout, "Size   of instrDesc   = %2u\n", sizeof(emitter::instrDesc));
     // fprintf(fout, "Offset of _idIns      = %2u\n", offsetof(emitter::instrDesc, _idIns      ));
     // fprintf(fout, "Offset of _idInsFmt   = %2u\n", offsetof(emitter::instrDesc, _idInsFmt   ));
@@ -930,48 +929,6 @@ insGroup* emitter::emitSavIG(bool emitAdd)
     return ig;
 }
 
-#ifdef LEGACY_BACKEND
-void emitter::emitTmpSizeChanged(unsigned tmpSize)
-{
-    assert(emitGrowableMaxByteOffs <= SCHAR_MAX);
-
-#ifdef DEBUG
-    // Workaround for FP code
-    bool bAssert = JitConfig.JitMaxTempAssert() ? true : false;
-
-    if (tmpSize > emitMaxTmpSize && bAssert)
-    {
-        // TODO-Review: We have a known issue involving floating point code and this assert.
-        // The generated code will be ok, This is only a warning.
-        // To not receive this assert again you can set the registry key: JITMaxTempAssert=0.
-        //
-        assert(!"Incorrect max tmp size set.");
-    }
-#endif
-
-    if (tmpSize <= emitMaxTmpSize)
-        return;
-
-    unsigned change = tmpSize - emitMaxTmpSize;
-
-    /* If we have used a small offset to access a variable, growing the
-       temp size is a problem if we should have used a large offset instead.
-       Detect if such a situation happens and bail */
-
-    if (emitGrowableMaxByteOffs <= SCHAR_MAX && (emitGrowableMaxByteOffs + change) > SCHAR_MAX)
-    {
-#ifdef DEBUG
-        if (emitComp->verbose)
-            printf("Under-estimated var offset encoding size for ins #%Xh\n", emitMaxByteOffsIdNum);
-#endif
-        IMPL_LIMITATION("Should have used large offset to access var");
-    }
-
-    emitMaxTmpSize = tmpSize;
-    emitGrowableMaxByteOffs += change;
-}
-#endif // LEGACY_BACKEND
-
 /*****************************************************************************
  *
  *  Start generating code to be scheduled; called once per method.
@@ -982,10 +939,6 @@ void emitter::emitBegFN(bool hasFramePtr
                         ,
                         bool chkAlign
 #endif
-#ifdef LEGACY_BACKEND
-                        ,
-                        unsigned lclSize
-#endif // LEGACY_BACKEND
                         ,
                         unsigned maxTmpSize)
 {
@@ -1001,14 +954,6 @@ void emitter::emitBegFN(bool hasFramePtr
     emitHasFramePtr = hasFramePtr;
 
     emitMaxTmpSize = maxTmpSize;
-
-#ifdef LEGACY_BACKEND
-    emitLclSize             = lclSize;
-    emitGrowableMaxByteOffs = 0;
-#ifdef DEBUG
-    emitMaxByteOffsIdNum = (unsigned)-1;
-#endif // DEBUG
-#endif // LEGACY_BACKEND
 
 #ifdef DEBUG
     emitChkAlign = chkAlign;
@@ -1312,20 +1257,6 @@ void* emitter::emitAllocInstr(size_t sz, emitAttr opsz)
     assert(id->idReg2() == regNumber(0));
 #ifdef _TARGET_XARCH_
     assert(id->idCodeSize() == 0);
-#endif
-
-#if HAS_TINY_DESC
-    /* Is the second area to be cleared actually present? */
-    if (sz >= SMALL_IDSC_SIZE)
-    {
-        /* Clear the second 4 bytes, or the 'SMALL' part */
-        *(int*)((BYTE*)id + (SMALL_IDSC_SIZE - sizeof(int))) = 0;
-
-        // These fields should have been zero-ed by the above
-        assert(id->idIsLargeCns() == false);
-        assert(id->idIsLargeDsp() == false);
-        assert(id->idIsLargeCall() == false);
-    }
 #endif
 
     // Make sure that idAddrUnion is just a union of various pointer sized things
@@ -2305,7 +2236,7 @@ bool emitter::emitNoGChelper(unsigned IHX)
 
         case CORINFO_HELP_PROF_FCN_LEAVE:
         case CORINFO_HELP_PROF_FCN_ENTER:
-#if defined(_TARGET_AMD64_) || (defined(_TARGET_X86_) && !defined(LEGACY_BACKEND))
+#if defined(_TARGET_XARCH_)
         case CORINFO_HELP_PROF_FCN_TAILCALL:
 #endif
         case CORINFO_HELP_LLSH:
@@ -2335,14 +2266,11 @@ bool emitter::emitNoGChelper(unsigned IHX)
 #endif
 
         case CORINFO_HELP_ASSIGN_REF:
-
         case CORINFO_HELP_CHECKED_ASSIGN_REF:
+        case CORINFO_HELP_ASSIGN_BYREF:
 
         case CORINFO_HELP_GETSHARED_GCSTATIC_BASE_NOCTOR:
-
         case CORINFO_HELP_GETSHARED_NONGCSTATIC_BASE_NOCTOR:
-
-        case CORINFO_HELP_ASSIGN_BYREF:
 
         case CORINFO_HELP_INIT_PINVOKE_FRAME:
 
@@ -5363,8 +5291,6 @@ UNATIVE_OFFSET emitter::emitDataConst(const void* cnsAddr, unsigned cnsSize, boo
     return cnum;
 }
 
-#ifndef LEGACY_BACKEND
-
 //------------------------------------------------------------------------
 // emitAnyConst: Create a data section constant of arbitrary size.
 //
@@ -5424,7 +5350,6 @@ CORINFO_FIELD_HANDLE emitter::emitFltOrDblConst(double constValue, emitAttr attr
     UNATIVE_OFFSET cnum    = emitDataConst(cnsAddr, cnsSize, dblAlign);
     return emitComp->eeFindJitDataOffs(cnum);
 }
-#endif
 
 /*****************************************************************************
  *
@@ -5460,8 +5385,8 @@ void emitter::emitOutputDataSec(dataSecDsc* sec, BYTE* dst)
             JITDUMP("  section %u, size %u, block absolute addr\n", secNum++, dscSize);
 
             assert(dscSize && dscSize % TARGET_POINTER_SIZE == 0);
-            size_t numElems = dscSize / TARGET_POINTER_SIZE;
-            BYTE** bDst     = (BYTE**)dst;
+            size_t         numElems = dscSize / TARGET_POINTER_SIZE;
+            target_size_t* bDst     = (target_size_t*)dst;
             for (unsigned i = 0; i < numElems; i++)
             {
                 BasicBlock* block = ((BasicBlock**)dsc->dsCont)[i];
@@ -5475,7 +5400,7 @@ void emitter::emitOutputDataSec(dataSecDsc* sec, BYTE* dst)
 #ifdef _TARGET_ARM_
                 target = (BYTE*)((size_t)target | 1); // Or in thumb bit
 #endif
-                bDst[i] = target;
+                bDst[i] = (target_size_t)target;
                 if (emitComp->opts.compReloc)
                 {
                     emitRecordRelocation(&(bDst[i]), target, IMAGE_REL_BASED_HIGHLOW);
@@ -5846,9 +5771,9 @@ void emitter::emitRecordGCcall(BYTE* codePos, unsigned char callInstrSize)
     call->cdByrefRegs = (regMaskSmall)emitThisByrefRegs;
 
 #if EMIT_TRACK_STACK_DEPTH
-#ifndef FEATURE_UNIX_AMD64_STRUCT_PASSING
+#ifndef UNIX_AMD64_ABI
     noway_assert(FitsIn<USHORT>(emitCurStackLvl / ((unsigned)sizeof(unsigned))));
-#endif // FEATURE_UNIX_AMD64_STRUCT_PASSING
+#endif // UNIX_AMD64_ABI
 #endif
 
     // Append the call descriptor to the list */
@@ -6159,7 +6084,7 @@ unsigned char emitter::emitOutputSizeT(BYTE* dst, ssize_t val)
 //    Same as wrapped function.
 //
 
-#if !defined(LEGACY_BACKEND) && defined(_TARGET_X86_)
+#if defined(_TARGET_X86_)
 unsigned char emitter::emitOutputByte(BYTE* dst, size_t val)
 {
     return emitOutputByte(dst, (ssize_t)val);
@@ -6199,7 +6124,7 @@ unsigned char emitter::emitOutputSizeT(BYTE* dst, unsigned __int64 val)
 {
     return emitOutputSizeT(dst, (ssize_t)val);
 }
-#endif // !defined(LEGACY_BACKEND) && defined(_TARGET_X86_)
+#endif // defined(_TARGET_X86_)
 
 /*****************************************************************************
  *

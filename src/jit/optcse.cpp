@@ -1935,12 +1935,6 @@ public:
         no_cse_cost  = candidate->UseCount() * candidate->Cost();
         yes_cse_cost = (candidate->DefCount() * cse_def_cost) + (candidate->UseCount() * cse_use_cost);
 
-#if CPU_LONG_USES_REGPAIR
-        if (candidate->Expr()->TypeGet() == TYP_LONG)
-        {
-            yes_cse_cost *= 2;
-        }
-#endif
         no_cse_cost += extra_no_cost;
         yes_cse_cost += extra_yes_cost;
 
@@ -1998,11 +1992,6 @@ public:
             // increase the cutoffs for aggressive and moderate CSE's
             //
             int incr = BB_UNITY_WEIGHT;
-
-#if CPU_LONG_USES_REGPAIR
-            if (successfulCandidate->Expr()->TypeGet() == TYP_LONG)
-                incr *= 2;
-#endif
 
             if (cseRefCnt > aggressiveRefCnt)
             {
@@ -2228,7 +2217,6 @@ public:
                 //
                 if (result == false)
                 {
-                    assert(sideEffList);
 #ifdef DEBUG
                     if (m_pCompiler->verbose)
                     {
@@ -2513,32 +2501,34 @@ void Compiler::optValnumCSE_Heuristic()
  *
  */
 
-bool Compiler::optValnumCSE_UnmarkCSEs(GenTree* deadTree, GenTree** wbKeepList)
+bool Compiler::optValnumCSE_UnmarkCSEs(GenTree* candidateTree, GenTree** wbKeepList)
 {
     assert(optValnumCSE_phase);
 
-    // If we have a non-empty *wbKeepList, then we first check for the rare case where we
-    // have a nested CSE def that has side-effects and return false if have this case
-    //
-    if (*wbKeepList != nullptr)
-    {
-        Compiler::fgWalkResult result = fgWalkTreePre(&deadTree, optHasCSEdefWithSideeffect, (void*)wbKeepList);
-        if (result == WALK_ABORT)
-        {
-            return false;
-        }
-    }
-
-    // We need to communicate the 'keepList' to optUnmarkCSEs
-    // as any part of the 'deadTree' tree that is in the keepList is preserved
-    // and is not deleted and does not have its ref counts decremented
+    // We need to communicate the 'keepList' to both optHasCSEdefWithSideeffect
+    // and optUnmarkCSEs as any part of the 'candidateTree' tree that is in the
+    // keepList is preserved and is not deleted and does not have its ref counts
+    // decremented.
     // We communicate this value using the walkData.pCallbackData field
     //
 
-    Compiler::fgWalkResult result = fgWalkTreePre(&deadTree, optUnmarkCSEs, (void*)wbKeepList);
-    assert(result != WALK_ABORT);
+    // First check for the rare case where we have a nested CSE def that has
+    // side-effects and return false whenever we have this case
+    //
+    Compiler::fgWalkResult defWithSideEffectResult =
+        fgWalkTreePre(&candidateTree, optHasCSEdefWithSideeffect, (void*)wbKeepList);
+    bool hasPersistentSideEffect = (defWithSideEffectResult == WALK_ABORT);
+    if (hasPersistentSideEffect)
+    {
+        return false;
+    }
+    else
+    {
+        Compiler::fgWalkResult unmarkResult = fgWalkTreePre(&candidateTree, optUnmarkCSEs, (void*)wbKeepList);
+        assert(unmarkResult != WALK_ABORT);
 
-    return true;
+        return true;
+    }
 }
 
 /*****************************************************************************
